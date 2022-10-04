@@ -1,0 +1,28 @@
+##############################################################################
+############### Mapping of Microbial fragments using Pufferfish ##############
+##############################################################################
+
+rule mapping:
+	input:
+		M1 = "%s/{sample}_1%s" % (config["directories"]["SAMPLES_DIR"], config["parameters"]["FILES_EXT"]),
+		M2 = "%s/{sample}_2%s" % (config["directories"]["SAMPLES_DIR"], config["parameters"]["FILES_EXT"]),
+		pufferfish_index = config["directories"]["INDEX"]
+	params:
+		outDir = "%s/{sample}/mappings.SAM" % (config["directories"]["RESULTS"]),
+		path = "%s/pufferfish" % (config["directories"]["BINARIES"])
+	output:
+		mappings = "%s/{sample}/mappings.SAM" % (config["directories"]["RESULTS"])
+	log:
+		"%s/{sample}/logs/pufferfish_mapping.log" % (config["directories"]["RESULTS"])
+	threads:
+		config["resources"]["TPS"]
+	resources:
+		mem_mb = config["resources"]["MEM_MB"]
+	message:
+		"*** [Mapping of microbial fragments... | Threads: {threads}] -%s\n" % (str(time.strftime("%H:%M:%S")))
+	benchmark:
+		"benchmarking_files/{sample}_mapping.tsv"
+	shell:
+		"""
+		{params.path}/pufferfish align -i {input.pufferfish_index} -1 {input.M1} -2 {input.M2} -t {threads} --coverageScoreRatio 0.5 -o {params.outDir}
+		"""

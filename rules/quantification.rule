@@ -1,0 +1,40 @@
+##############################################################################
+################### Quantification of Microbial fragments ####################
+##############################################################################
+
+rule quantification:
+	input:
+		mappings = "%s/{sample}/mappings.SAM" % (config["directories"]["RESULTS"])
+	params:
+		outDir = "%s/{sample}/final.txt" % (config["directories"]["RESULTS"]),
+		minCnt = config["parameters"]["MIN_CNT"],
+		batchSize = config["parameters"]["BATCH_SIZE"],
+		score_diff = config["parameters"]["MAX_SCORE_DIFFERENCE"],
+		abund_diff = config["parameters"]["MAX_ABUNDANCE_DIFFERENCE"],
+		segment_size = config["parameters"]["SEGMENT_SIZE"],
+		abund_output = config["parameters"]["ABUNDANCE_OUTPUT"],
+		abund_dir = "%s/{sample}/quant.sf" % (config["directories"]["RESULTS"]),
+		tax = config["parameters"]["TAXONOMY"],
+		method = config["parameters"]["MAPPING_MODE"]
+	output:
+		quant = "%s/{sample}/final.txt" % (config["directories"]["RESULTS"])
+	log:
+		"%s/{sample}/logs/cedar_quantification.log" % (config["directories"]["RESULTS"])
+	threads:
+		config["resources"]["TPS"]
+	message:
+		"*** [Quantification of microbial fragments... | Threads: {threads}] - %s\n" % (str(time.strftime("%H:%M:%S")))
+	benchmark:
+		"benchmarking_files/{sample}_quantification.tsv"
+	run:
+		string = "cargo run --release -- -s {} -c {} -o {} -b {} --method {} --segment_size {} --min_score_diff {} --max_abund_diff {}".format(
+			input.mappings, params.minCnt, params.outDir, params.batchSize, params.method, params.segment_size, params.score_diff, params.abund_diff)
+		if params.abund_output != False:
+			if params.tax != False:
+				string += " -a {} -t {}".format(params.abund_dir, params.tax)
+			else: 
+				string += " -a {}".format(params.abund_dir)
+		else:
+			if params.tax != False:
+				string += " -t {}".format(params.tax)
+		shell(string)

@@ -1,0 +1,22 @@
+##############################################################################
+######################### Creation of Minimap2 Index #######################
+##############################################################################
+
+rule index:
+    input:
+        reference = config["directories"]["REFERENCES"]
+    params:
+        outDir = "%s.mmi" % (config["directories"]["INDEX"]),
+        path = "%s/minimap2" % (config["directories"]["BINARIES"])
+    output:
+        index = "%s.mmi" % (config["directories"]["INDEX"])
+    log:
+        "logs/minimap2_index.log"
+    resources:
+        mem_mb = config["resources"]["MEM_MB"]
+    message:
+        "*** [Indexing reference ... ] - %s\n" % (str(time.strftime("%H:%M:%S")))
+    shell:
+        """
+        {params.path}/minimap2 -d {params.outDir} {input.reference}
+        """

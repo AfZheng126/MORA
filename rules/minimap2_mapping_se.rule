@@ -1,0 +1,27 @@
+##############################################################################
+############ Quantification of Microbial fragments using Minimap2 ############
+##############################################################################
+
+rule mappingSE:
+	input:
+		M = "%s/{sample}%s" % (config["directories"]["SAMPLES_DIR"], config["parameters"]["FILES_EXT"]),
+		index = "%s.mmi" % (config["directories"]["INDEX"])
+	params:
+		outDir = "%s/{sample}/mappings.SAM" % (config["directories"]["RESULTS"]),
+		path = "%s/minimap2" % (config["directories"]["BINARIES"])
+	output:
+		mappings = "%s/{sample}/mappings.SAM" % (config["directories"]["RESULTS"])
+	log:
+		"%s/{sample}/logs/pufferfish_mapping.log" % (config["directories"]["RESULTS"])
+	threads:
+		config["resources"]["TPS"]
+	resources:
+		mem_mb = config["resources"]["MEM_MB"]
+	message:
+		"*** [Mapping of microbial fragments... | Threads: {{3}}] - %s\n" % (str(time.strftime("%H:%M:%S")))
+	benchmark:
+		"benchmarking_files/{sample}_minimap2_mapping.tsv"
+	shell:
+		"""
+		{params.path}/minimap2 --split-prefix temp -ax map-ont -N 5 {input.index} {input.M} > {params.outDir}
+		"""

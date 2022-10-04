@@ -1,0 +1,30 @@
+##############################################################################
+################ Mapping of Microbial fragments using Bowtie2 ################
+##############################################################################
+
+rule mapping:
+	input:
+		M1 = "%s/{sample}_1%s" % (config["directories"]["SAMPLES_DIR"], config["parameters"]["FILES_EXT"]),
+        	M2 = "%s/{sample}_2%s" % (config["directories"]["SAMPLES_DIR"], config["parameters"]["FILES_EXT"])
+	params:
+		bowtie_index = "%s/index_file" % (config["directories"]["INDEX"]),
+		outDir = "%s/{sample}/mappings.SAM" % (config["directories"]["RESULTS"]),
+		path = "%s/bowtie2" % (config["directories"]["BINARIES"])
+	output:
+		mappings = "%s/{sample}/mappings.SAM" % (config["directories"]["RESULTS"])
+	log:
+		"%s/{sample}/logs/bowtie2_mapping.log" % (config["directories"]["RESULTS"])
+	benchmark:
+		"%s/{sample}/logs/bowtie2_mapping.tsv" % (config["directories"]["RESULTS"])
+	threads:
+		config["resources"]["TPS"]
+	resources:
+		mem_mb = config["resources"]["MEM_MB"]
+	message:
+		"*** [Mapping of microbial fragments... | Threads: {threads}] -%s\n" % (str(time.strftime("%H:%M:%S")))
+	benchmark:
+		"benchmarking_files/{sample}_bowtie2_mapping.tsv"
+	shell:
+		"""
+		{params.path}/bowtie2 -x {params.bowtie_index} -1 {input.M1} -2 {input.M2} -p {threads} -S {params.outDir} -k 6
+		"""

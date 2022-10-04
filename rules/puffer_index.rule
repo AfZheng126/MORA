@@ -1,0 +1,24 @@
+##############################################################################
+######################### Creation of Pufferfish Index #######################
+##############################################################################
+
+rule index:
+	input:
+		reference = config["directories"]["REFERENCES"]
+	params:
+		outDir = config["directories"]["INDEX"],
+		path = "%s/pufferfish" % (config["directories"]["BINARIES"])
+	output:
+		puff_index = directory(config["directories"]["INDEX"])
+	log:
+		"logs/pufferfish_index.log"
+	benchmark:
+		"logs/puffer_index.tsv" 
+	resources:
+		mem_mb = config["resources"]["MEM_MB"]
+	message:
+		"*** [Indexing reference ... ] - %s\n" % (str(time.strftime("%H:%M:%S")))
+	shell:
+		"""
+		{params.path}/pufferfish index -r {input.reference} -o {params.outDir}
+		"""

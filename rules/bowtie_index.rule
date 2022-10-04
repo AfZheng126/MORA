@@ -1,0 +1,24 @@
+##############################################################################
+########################## Creation of Bowtie2 Index #########################
+##############################################################################
+
+rule index:
+	input:
+		reference = config["directories"]["REFERENCES"]
+	params:
+		outDir = "%s/index_file" % (config["directories"]["INDEX"]),
+		path = "%s/bowtie2" % (config["directories"]["BINARIES"])
+	output:
+		bowtie_index = "%s/index_file" % (config["directories"]["INDEX"])
+	log:
+		"logs/bowtie_index.log"
+	benchmark:
+		"logs/bowtie_index.tsv"
+	resources:
+		mem_mb = config["resources"]["MEM_MB"]
+	message:
+		"*** [Indexing reference ... ] - %s\n" % (str(time.strftime("%H:%M:%S")))
+	shell:
+		"""
+		{params.path}/bowtie2-build {input.reference} {params.outDir}
+		"""
