@@ -1,0 +1,63 @@
+##############################################################################
+##################################### LRA ####################################
+##############################################################################
+
+configfile: "config/config.yaml"
+
+from os import listdir
+import time
+import sys
+import glob
+
+onstart: 
+	print("starting program")
+
+if config["parameters"]["MAPPING_MODE"] == "pufferfish":
+	include: "rules/puffer_index.rule"
+	if config["parameters"]["STRATEGY"] == "PE":
+		include: "rules/pufferfish_mappings.rule"
+	else:
+		include: "rules/pufferfish_mappings_se.rule"
+elif config["parameters"]["MAPPING_MODE"] == "bowtie2":
+	include: "rules/bowtie_index.rule"
+	if config["parameters"]["STRATEGY"] == "PE":
+		include: "rules/bowtie_mapping_pe.rule"
+	else:
+		include: "rules/bowtie_mapping_se.rule"
+else:
+	include: "rules/minimap2_index.rule"
+	include: "rules/minimap2_mapping_se.rule"
+
+
+include: "rules/quantification.rule"
+
+def startMessage(samplesNum):
+	print("\n\n***************** [LRA-v0.1.0] *****************\n")
+	print("[Started execution of LRA]")
+	print("[Number of samples: %d]" % (samplesNum))
+	print("[Number of threads per sample: %d]" % (config["resources"]["TPS"]))
+	print("[Mode: %s]\n\n" % (config["parameters"]["MAPPING_MODE"]))
+	print("******************************************************\n\n")
+	time.sleep(1)
+
+def getSampleNames(samples_dir):
+	ftypes = ('*.fq', '*.fastq', '*.fq.gz', '*.fastq.gz', '*.fasta')
+	samples = list()
+	for files in ftypes:
+		samples.extend(glob.glob(os.path.join(config["directories"]["SAMPLES_DIR"], files)))
+	if config["parameters"]["STRATEGY"] == "PE":
+		return list(set([f.rsplit("/", 1)[1].rsplit(".", 1)[0].rsplit("_", 1)[0] for f in samples]))
+	else:
+		return list(set([f.rsplit(".", 2)[0] for f in os.listdir(samples_dir)]))
+
+SAMPLES = getSampleNames(config["directories"]["SAMPLES_DIR"])
+startMessage(len(SAMPLES))
+print(SAMPLES)
+
+rule all:
+	input:
+		expand("%s/{sample}/final.txt" % (config["directories"]["RESULTS"]), sample = SAMPLES)
+
+onsuccess:
+	print("[Done - %s]\n" % (str(time.strftime("%H:%M:%S"))))
+

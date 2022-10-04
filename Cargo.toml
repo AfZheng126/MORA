@@ -1,0 +1,28 @@
+[package]
+name = "LRA"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = "*"
+confy = "0.4.0"
+bam = "0.1.4"
+mathru = "0.13.0"
+rusty-machine = "0.5.4"
+rand = "0.8.5"
+rand_distr = "0.4.3"
+rayon = "1.5.3"
+
+[profile.release]
+opt-level = 3
+debug = false
+split-debuginfo = '...'  # Platform-specific.
+debug-assertions = false
+overflow-checks = false
+lto = false
+panic = 'unwind'
+incremental = false
+codegen-units = 16
+rpath = false
