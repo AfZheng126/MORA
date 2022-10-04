@@ -1,0 +1,21 @@
+directories:
+        BINARIES: binaries
+        REFERENCES: ../../data/microbial_reference.fa
+        SAMPLES_DIR: ../../data/400_samples
+        RESULTS: 400_bowtie_results
+        INDEX: index/microbial_bowtie
+parameters:
+        FILES_EXT: .fq.gz
+        MAPPING_MODE: pufferfish
+        STRATEGY: PE
+        TYPE: DNA
+        BATCH_SIZE: 100000000
+        MIN_CNT: 0.1
+        MAX_SCORE_DIFFERENCE: 20.0
+        MAX_ABUNDANCE_DIFFERENCE: 0.001
+        SEGMENT_SIZE: 100
+        ABUNDANCE_OUTPUT: False
+        TAXONOMY: TAXONOMY
+resources:
+        MEM_MB: 100000
+        TPS: 8
