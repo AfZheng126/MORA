@@ -1,5 +1,5 @@
 ##############################################################################
-##################################### LRA ####################################
+##################################### MORA ####################################
 ##############################################################################
 
 configfile: "config/config.yaml"
@@ -32,7 +32,7 @@ else:
 include: "rules/quantification.rule"
 
 def startMessage(samplesNum):
-	print("\n\n***************** [LRA-v0.1.0] *****************\n")
+	print("\n\n***************** [MORA-v0.1.0] *****************\n")
 	print("[Started execution of LRA]")
 	print("[Number of samples: %d]" % (samplesNum))
 	print("[Number of threads per sample: %d]" % (config["resources"]["TPS"]))
