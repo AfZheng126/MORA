@@ -1,18 +1,17 @@
-# Re-Alignment
+# MORA
 
-The program is an aligner that aligns query sequences to a unique reference.
+Mora is an aligner that re-aligns query sequences to a unique reference.
 
-Main steps of the algorithm: 
-1. Find the potential mappings of the queries and output them as a SAM file using pufferfish.
-2. Calculate the expected abundance levels of the references based on the SAM file using Cedar.
+Main steps of Mora: 
+1. Find the potential mappings of the queries and output them as a SAM file using an initial aligner.
+2. Calculate the expected abundance levels of the references based on the SAM file.
 3. Assign each query that had at least one valid mapping to a reference based on their mapping scores and the expected abundance levels.
 4. Output the results into a txt file. 
 
-
 # Installation
 ```
-git clone git@github.com:AfZheng126/Re-Alignment.git
-cd Re-Alignment
+git clone git@github.com:AfZheng126/MORA.git
+cd MORA
 bash install.sh
 cargo build
 ```
@@ -56,7 +55,7 @@ where reference.fa is your reference files. After this is done, update TAXONOMY 
 # Running ""
 After everything in the config files is updated according to your directories, run 
 ```
-snakemake --snakefile LRA --cores 24 --resources mem_mb=140000
+snakemake --snakefile MORA --cores 24 --resources mem_mb=140000
 ```
 
 # Running "" as a Rust Program
