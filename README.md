@@ -10,7 +10,7 @@ Main steps of Mora:
 
 # Installation
 ```
-git clone git@github.com:AfZheng126/MORA.git
+git clone https://github.com/AfZheng126/MORA.git
 cd MORA
 bash install.sh
 cargo build
