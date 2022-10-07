@@ -53,6 +53,8 @@ pub(crate) struct Cedar {
     taxa_node_map: 
     ref_name_2_tax_id: contains the names of the references and their taxonomy level
     ref_id_2_tax_id: contains the ids of the reference and their taxonomy level 
+    re_id_2_name: contains the ids of the reference and their name in the SAM file
+    query_id_2_name: contains the ids of hte queries and their name in the SAM file
 
     strain_coverage: coverage of each reference
     strain_coverage_bins: the references IDs and their corresponding bin coverages 
@@ -68,13 +70,15 @@ pub(crate) struct Cedar {
     eqb: EquivalenceClassBuilder,
     taxa_node_map: HashMap<usize, TaxaNode>,
     ref_name_2_tax_id: HashMap<String, usize>,
+    ref_id_2_name: HashMap<usize, String>,
+    pub(crate) query_id_2_name: HashMap<usize, String>,
     strain_coverage: HashMap<usize, f32>,
     strain_coverage_bins: HashMap<usize, Vec<usize>>, 
     strain_abundance: HashMap<usize, f32>, 
     read_cnt: usize,
     ref_id_to_tax_id: HashMap<usize, usize>,
     cov: HashMap<usize, usize>,
-    pub(crate) queries: HashMap<String, Query>,
+    pub(crate) queries: HashMap<usize, Query>,
     references: HashMap<usize, Reference>,
     taxa_abundance: HashMap<usize, f32>,
     unmapping_reads: usize,
@@ -94,14 +98,12 @@ impl Cedar {
         }
         
         Cedar { eqb: EquivalenceClassBuilder::new(), taxa_node_map, ref_name_2_tax_id, strain_coverage: HashMap::new(), 
-            strain_coverage_bins: HashMap::new(), strain_abundance: HashMap::new(), read_cnt: 0, ref_id_to_tax_id: HashMap::new(), cov: HashMap::new(), 
+            strain_coverage_bins: HashMap::new(), strain_abundance: HashMap::new(), read_cnt: 0, ref_id_to_tax_id: HashMap::new(), ref_id_2_name: HashMap::new(), query_id_2_name: HashMap::new(), cov: HashMap::new(), 
             queries: HashMap::new(), references: HashMap::new(), taxa_abundance: HashMap::new(), unmapping_reads: 0 }
     }
 
     // find the stats of the current list of queries and also updates the equivalence class builder
     fn process_reads_parallel(&mut self, flat_abundance: bool) -> Stats {
-        //let (mut total_read_cnt, mut seq_not_found, mut total_multi_mapping_reads, mut total_unmapped_reads, 
-        //   mut total_reads_not_passing_cond, mut tid, mut conflicting) = (0, 0, 0, 0, 0, 0, 0);
         let (total_read_cnt, total_multi_mapped_reads, total_unmapped_reads) = (Mutex::new(0), Mutex::new(0), Mutex::new(0));
         let (sender, receiver) = channel();
  
@@ -199,9 +201,10 @@ impl Cedar {
         println!("Mapping Ouput File: {}", mapper_output_filename);
         
         // load the information from the file
-        let c = read_by_bash(mapper_output_filename, batch_size, method);     // right now I am only considering unpaired reads
+        let c = read_by_bash(mapper_output_filename, batch_size, method);
         self.references = c.0;
         self.queries = c.1;
+        self.query_id_2_name = c.2;
 
         for key in self.references.keys() {
             self.strain_abundance.insert(*key, 0.0);
@@ -541,7 +544,7 @@ impl Cedar {
         println!("File has been written");
     }
 
-    pub(crate) fn get_queries(&self) -> HashMap<String, Query> {
+    pub(crate) fn get_queries(&self) -> HashMap<usize, Query> {
         self.queries.clone()
     }
 

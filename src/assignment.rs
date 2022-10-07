@@ -21,8 +21,8 @@ use get_taxonomy::tax_main;
 struct AssignmentMachine {
     abundance: HashMap<usize, f32>,
     current_abundance: HashMap<usize, f32>,
-    assignments: HashMap<usize, HashMap<usize, HashSet<String>>>,
-    output_assignments: HashMap<String, usize>,
+    assignments: HashMap<usize, HashMap<usize, HashSet<usize>>>,
+    output_assignments: HashMap<usize, usize>,
     query_size: usize,
     max_diff: f32,
 }
@@ -37,16 +37,16 @@ impl AssignmentMachine {
     }
 
     // assign a query to a reference with a score
-    fn add_assignment(&mut self, name: String, ref_id: usize, score: usize) {
+    fn add_assignment(&mut self, query_id: usize, ref_id: usize, score: usize) {
         if ref_id != 0 {
             let entry = self.current_abundance.entry(ref_id).or_insert(0.0);
             *entry += 1.0 / self.query_size as f32;
         }
-        self.output_assignments.insert(name.to_string(), ref_id);
+        self.output_assignments.insert(query_id, ref_id);
 
         let entry = self.assignments.entry(ref_id).or_insert(HashMap::new());
         let entry2 = entry.entry(score).or_insert(HashSet::new());
-        entry2.insert(name.to_string());
+        entry2.insert(query_id);
     }
 
     // check if a reference still has space to be assigned a query
@@ -59,34 +59,34 @@ impl AssignmentMachine {
     }
 
     // remove an assignment for a previously assigned query
-    fn remove_assignment(&mut self, ref_id: usize, name: &String, score: usize) {
+    fn remove_assignment(&mut self, ref_id: usize, query_id: usize, score: usize) {
         let entry = self.current_abundance.entry(ref_id).or_insert(0.0);
         *entry -= 1.0 / self.query_size as f32;
         
         let entry = self.assignments.entry(ref_id).or_insert(HashMap::new());
         let entry2 = entry.entry(score).or_insert(HashSet::new());
-        entry2.remove(name);
+        entry2.remove(&query_id);
     }
 
     // initial assignment of unique mapping queries or unmapped queries
-    fn initial_assignment(&mut self, queries: HashMap<String, Query>) -> HashMap<String, Query> {
+    fn initial_assignment(&mut self, queries: HashMap<usize, Query>) -> HashMap<usize, Query> {
         let mut updated_queries = queries.clone(); 
 
         let mut unique_mapping_queries = 0;
         let mut unmapped_queries = 0;
         
         println!("total query_size = {}", self.query_size);
-        for (name, query) in queries {
+        for (query_id, query) in queries {
             if query.mappings.len() == 1 {
                 unique_mapping_queries += 1;
 
-                updated_queries.remove(&name);
+                updated_queries.remove(&query_id);
                 let maps: Vec<Mapping> = query.mappings.into_iter().collect();
-                self.add_assignment(name, maps[0].get_reference_id(), 1000);
+                self.add_assignment(query_id, maps[0].get_reference_id(), 1000);
             } else if query.mappings.len() == 0 {
                 unmapped_queries += 1;
-                updated_queries.remove(&name);
-                self.add_assignment(name, 0, 0);
+                updated_queries.remove(&query_id);
+                self.add_assignment(query_id, 0, 0);
             }
         }
         println!("unique mapping queries: {}, unmapped queries: {}, current assigned length: {}", unique_mapping_queries, unmapped_queries, self.output_assignments.len());
@@ -94,14 +94,14 @@ impl AssignmentMachine {
     }
 
     // secondary assignment of queries whose best mapping is a lot better than the secondary mappings
-    fn secondary_assignment(&mut self, queries: HashMap<String, Query>, score_max_diff: f32) -> HashMap<String, Query>{
+    fn secondary_assignment(&mut self, queries: HashMap<usize, Query>, score_max_diff: f32) -> HashMap<usize, Query>{
         let mut updated_queries = queries.clone();
-        for (name, query) in &queries {
+        for (query_id, query) in &queries {
             let (ref_id, score) = assign_best(query, &self, score_max_diff);
             if ref_id != 0 {
-                updated_queries.remove(name);
+                updated_queries.remove(query_id);
                 if self.has_space(&ref_id) {
-                    self.add_assignment(name.to_string(), ref_id, score as usize);
+                    self.add_assignment(*query_id, ref_id, score as usize);
                 }
             }
         }
@@ -109,14 +109,14 @@ impl AssignmentMachine {
     }
 
     //assignment based on abudancies
-    fn assign_based_on_abundance(&mut self, mut queries: HashMap<String, Query>, original_queries: &HashMap<String, Query>) {
+    fn assign_based_on_abundance(&mut self, mut queries: HashMap<usize, Query>, original_queries: &HashMap<usize, Query>) {
         //create score bins
         let mut score_bins = HashMap::new();
-        for (name, query) in &queries {
+        for (query_id, query) in &queries {
             for mapping in &query.mappings {
                 if self.has_space(&mapping.get_reference_id()) {
                     let entry = score_bins.entry(mapping.get_score() as usize).or_insert(Vec::new());
-                    entry.push((name.to_string(), mapping.get_reference_id()));
+                    entry.push((*query_id, mapping.get_reference_id()));
                 }
             }
         }
@@ -125,10 +125,10 @@ impl AssignmentMachine {
         keys.par_sort_by(|a, b| b.cmp(a));
 
         for key in keys {
-            for (name, ref_id) in &score_bins[&key] {
-                if queries.contains_key(name) && self.has_space(ref_id){
-                    self.add_assignment(name.to_string(), *ref_id, key);
-                    queries.remove(name);
+            for (query_id, ref_id) in &score_bins[&key] {
+                if queries.contains_key(query_id) && self.has_space(ref_id){
+                    self.add_assignment(*query_id, *ref_id, key);
+                    queries.remove(query_id);
                 }
             }
         }
@@ -139,7 +139,7 @@ impl AssignmentMachine {
         if queries.len() != 0 {
             let (sender, receiver) = channel();
 
-            queries.par_iter().for_each_with(sender, |s, (name, query)|{
+            queries.par_iter().for_each_with(sender, |s, (query_id, query)|{
                 let ordered_mappings = query.sort_mappings();
                 let total_score = query.get_total_score();
                 //check if something can be moved from the reference that the mapping is mapped to
@@ -147,9 +147,9 @@ impl AssignmentMachine {
                 for map in ordered_mappings {
                     let new_score = map.get_score();
                     let new_normalized_score = map.get_score() / total_score;
-                    let (q_moved, name_of_moved, re_assigned_ref, original_score, re_assigned_score) = try_open_up_space(&self.assignments[&map.get_reference_id()], self, &map.get_reference_id(), original_queries, new_normalized_score);
+                    let (q_moved, id_of_moved, re_assigned_ref, original_score, re_assigned_score) = try_open_up_space(&self.assignments[&map.get_reference_id()], self, &map.get_reference_id(), original_queries, new_normalized_score);
                     if q_moved {
-                        s.send((map.get_reference_id(), name_of_moved, original_score, re_assigned_ref, re_assigned_score, name.to_string(), map.get_reference_id(), new_score as usize)).ok();
+                        s.send((map.get_reference_id(), id_of_moved, original_score, re_assigned_ref, re_assigned_score, query_id, map.get_reference_id(), new_score as usize)).ok();
                         moved = true;
                         break;
                     }
@@ -158,18 +158,18 @@ impl AssignmentMachine {
                     let mut locked = cannot_move.lock().unwrap();
                     *locked += 1;
                     let mut left_over_queries_locked = left_over_queries.lock().unwrap();
-                    left_over_queries_locked.insert(name.to_string(), query.clone());
+                    left_over_queries_locked.insert(*query_id, query.clone());
                 }
             });
 
             let mut res: Vec<_> = receiver.iter().collect();
 
             res.iter_mut().for_each(|x| {
-                let (old_ref_id, name_of_moved, original_score, new_ref_id, new_score, 
-                    name, map_ref_id, map_score) = x;
-                self.remove_assignment(*old_ref_id, &name_of_moved, *original_score);
-                self.add_assignment(name_of_moved.to_string(), *new_ref_id, *new_score);
-                self.add_assignment(name.to_string(), *map_ref_id, *map_score);
+                let (old_ref_id, id_of_moved, original_score, new_ref_id, new_score, 
+                    query_id, map_ref_id, map_score) = x;
+                self.remove_assignment(*old_ref_id, *id_of_moved, *original_score);
+                self.add_assignment(*id_of_moved, *new_ref_id, *new_score);
+                self.add_assignment(**query_id, *map_ref_id, *map_score);
             });
         }
         println!("cannot move: {}", cannot_move.into_inner().unwrap());
@@ -180,7 +180,7 @@ impl AssignmentMachine {
     }
 
     //assignment based on probability with weights being the mapping scores
-    fn assign_based_on_prob(&mut self, queries: HashMap<String, Query>) {
+    fn assign_based_on_prob(&mut self, queries: HashMap<usize, Query>) {
         for (name, query) in queries {
             let mappings:Vec<Mapping> = query.mappings.into_par_iter().collect();
             let dist  = WeightedAliasIndex::new(mappings.par_iter().map(|mapping| mapping.get_score()).collect()).unwrap();
@@ -220,7 +220,8 @@ pub(crate) fn assign_mappings(cedar: Cedar, max_diff: f32, score_max_diff: f32) 
     //write final assignments
     let mut unmapped = 0;
     let mut output = HashMap::new();
-    for (name, id) in machine.output_assignments {
+    for (query_id, id) in machine.output_assignments {
+        let name = cedar.query_id_2_name[&query_id].to_string();
         if id == 0{
             output.insert(name, "NA".to_string());
             unmapped += 1;
@@ -254,14 +255,14 @@ fn assign_best(query: &Query, machine: &AssignmentMachine, score_max_diff: f32) 
 
     output: 
         - if it has been moved
-        - name of query that has been moved
+        - id of query that has been moved
         - id of reference query was moved to
         - original mapping score
         - new mapping score
 */
-fn try_open_up_space(assignments: &HashMap<usize, HashSet<String>>, machine: &AssignmentMachine, ref_id: &usize, queries: &HashMap<String, Query>, new_normalized_score: f32) -> (bool, String, usize, usize, usize) {
+fn try_open_up_space(assignments: &HashMap<usize, HashSet<usize>>, machine: &AssignmentMachine, ref_id: &usize, queries: &HashMap<usize, Query>, new_normalized_score: f32) -> (bool, usize, usize, usize, usize) {
     if assignments.len() == 0 {
-        return (false, "".to_string(), 0, 0, 0);
+        return (false, 0, 0, 0, 0);
     }
 
     // sort the keys from smallest to largest
@@ -270,21 +271,21 @@ fn try_open_up_space(assignments: &HashMap<usize, HashSet<String>>, machine: &As
 
     // try find a query that can be moved
     for key in &keys {
-        for name in assignments.get(key).unwrap() {
-            let query = &queries[name];
+        for query_id in assignments.get(key).unwrap() {
+            let query = &queries[query_id];
             let total_score = query.get_total_score();
             // try assign the query to somewhere else
             for mapping in &query.mappings {
                 let re_assigned_ref_id = &mapping.get_reference_id();
                 if re_assigned_ref_id != ref_id && machine.has_space(re_assigned_ref_id) {
                     if (**key as f32)/total_score - mapping.get_score()/total_score  <  new_normalized_score - (**key as f32)/total_score {
-                        return (true, name.to_string(), *re_assigned_ref_id, **key, mapping.get_score() as usize);
+                        return (true, *query_id, *re_assigned_ref_id, **key, mapping.get_score() as usize);
                     }
                 }
             }
         }
     }
-    (false, "".to_string(), 0, 0, 0)
+    (false, 0, 0, 0, 0)
 }
 
 // write the output into a file in the following way: query_name    reference_name

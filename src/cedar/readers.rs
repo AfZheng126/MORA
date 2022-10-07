@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::Mutex;
 
 #[derive(Clone, PartialEq, Eq, Hash, Copy)]
 pub(crate) struct Mapping {
@@ -34,7 +35,7 @@ impl Mapping {
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Query {
-    pub(crate) query_name: String, 
+    pub(crate) query_name: usize, 
     cnt: usize,
     len: u32, 
     pub(crate) mappings: HashSet<Mapping>,        
@@ -43,7 +44,7 @@ pub(crate) struct Query {
 }
 
 impl Query {
-    fn new(query_name: String, cnt: usize, len: u32, mappings: HashSet<Mapping>, is_paired: bool) -> Query {
+    fn new(query_name: usize, cnt: usize, len: u32, mappings: HashSet<Mapping>, is_paired: bool) -> Query {
         let mut total_score = 0.0;
         for map in &mappings {
             total_score += map.get_score();
@@ -105,16 +106,25 @@ use std::io::{BufReader, BufRead};
 
 use super::taxa::TaxaNode;
 
-pub(crate) fn read_by_bash(file_name: String, batch_size: usize, method: String) -> (HashMap<usize, Reference>, HashMap<String, Query>){
+/*
+Inputs:
+file_name: directory for SAM file
+batch_size: how many bytes to read at a time
+method: how to analyze mapping scores
+
+Output:
+(references, ref_id_2_names, queries, query_id_2_name)
+*/
+pub(crate) fn read_by_bash(file_name: String, batch_size: usize, method: String) -> (HashMap<usize, Reference>, HashMap<usize, Query>, HashMap<usize, String>){
     let f = File::open(file_name).unwrap();
     let stream = BufReader::with_capacity(batch_size, f);
 
     let (references, reference_to_id, stream, first_read) = analyze_header(stream);
     println!("references are done: {}", references.len());
 
-    let queries = analyze_mappings_from_sam(stream, &reference_to_id, method, first_read);
+    let (queries, query_id_2_name) = analyze_mappings_from_sam(stream, &reference_to_id, method, first_read);
     println!("queries are done: {}", queries.len());
-    (references, queries)
+    (references, queries, query_id_2_name)
 }
 
 fn analyze_header<R: BufRead>(mut stream: R) -> (HashMap<usize, Reference>, HashMap<String, usize>, R, String) {    
@@ -218,19 +228,32 @@ fn line_to_mapping(line: Vec<&str>, references: &HashMap<String, usize>, method:
     (record_name, is_paired, record_length, mapping) 
 }
 
-fn analyze_mappings_from_sam<R: BufRead>(mut stream: R, references: &HashMap<String, usize>, method: String, first_line: String) -> HashMap<String, Query> {
+/*
+Inputs:
+stream: the thing that reads the SAM file
+references: the references
+method: to determine how to analyze the mapping scores (mainly for bowtie2)
+first_line: the left over line from analyzing the header part of the SAM file
+Output
+(queries, names for queries)
+*/
+fn analyze_mappings_from_sam<R: BufRead>(mut stream: R, references: &HashMap<String, usize>, method: String, first_line: String) -> (HashMap<usize, Query>, HashMap<usize, String>) {
     let mut buffer = String::new();
-    let mut queries:HashMap<String, Query> = HashMap::new();
+    let mut queries = HashMap::new();
+    let mut query_id_2_names = HashMap::new();
+    let mut query_id = 0;
     let mut left_over: String = "".to_string();
     let mut has_left_over = false;
 
     //work on first line left over from analyzing the header
     let line: Vec<_> = first_line.split('\t').collect();
     let (record_name, is_paired, record_length, mapping) = line_to_mapping(line, references, &method);
-    let mut current_query = Query::new(record_name.to_string(), 0, record_length as u32, HashSet::new(), is_paired);
+    query_id_2_names.insert(query_id, record_name.to_string());
+    let mut current_query = Query::new(query_id, 0, record_length as u32, HashSet::new(), is_paired);
     current_query.add_mapping(mapping);
     // insert it as the current queries HashMap is empty
-    queries.insert(record_name.to_string(), current_query);
+    queries.insert(query_id, current_query);
+    query_id += 1;
 
     loop {
         buffer.clear();
@@ -238,7 +261,6 @@ fn analyze_mappings_from_sam<R: BufRead>(mut stream: R, references: &HashMap<Str
         let length = buffer.len();
         stream.consume(length);
         if length == 0 && !has_left_over{ break; }
-        
         let buffer_string;
         if &left_over == "" {
             buffer_string = buffer;
@@ -255,15 +277,25 @@ fn analyze_mappings_from_sam<R: BufRead>(mut stream: R, references: &HashMap<Str
 
         let line: Vec<_> = lines[0].split('\t').collect();
         let (record_name, is_paired, record_length, mapping) = line_to_mapping(line, references, &method);
-        let mut current_query = Query::new(record_name.to_string(), 0, record_length as u32, HashSet::new(), is_paired);
-        current_query.add_mapping(mapping);
+        let mut current_query = Query::new(query_id, 0, record_length as u32, HashSet::new(), is_paired);
         //check the first line to see if that query is already in our HashMap
         let mut current_name = record_name.clone();
-        if queries.contains_key(&current_name) {
-            for map in queries[&current_name].mappings.clone(){
+        let found = &query_id_2_names.par_iter().find_any(|(id, name)| name.to_string() == current_name);
+        let mut found_existing = false;
+        let mut existing_id = 0;
+        if !found.is_none() {
+            current_query.query_name = *found.unwrap().0;
+            existing_id = *found.unwrap().0;
+            for map in queries[found.unwrap().0].mappings.clone(){
                 current_query.add_mapping(map);
             }
+            found_existing = true;
+        } else {
+            query_id_2_names.insert(query_id, record_name.to_string());
         }
+        current_query.add_mapping(mapping);
+        
+
         //go through the other lines in order
         for i in 1..lines.len() {
             let line: Vec<_> = lines[i].split('\t').collect();
@@ -271,15 +303,23 @@ fn analyze_mappings_from_sam<R: BufRead>(mut stream: R, references: &HashMap<Str
             if record_name == current_name {
                 current_query.add_mapping(mapping);
             } else {
-                queries.insert(current_name, current_query);
-                current_name = record_name.clone();
-                current_query = Query::new(record_name.to_string(), 0, record_length as u32, HashSet::new(), is_paired);
+                if found_existing {
+                    queries.insert(existing_id, current_query);
+                    found_existing = false;
+                } else {
+                    queries.insert(query_id, current_query);
+                    query_id += 1;
+                }
+                current_name = record_name.to_string();
+                query_id_2_names.insert(query_id, record_name.to_string());
+                current_query = Query::new(query_id, 0, record_length as u32, HashSet::new(), is_paired);
                 current_query.add_mapping(mapping);
             }
         }
-        queries.insert(current_name, current_query);
+        queries.insert(query_id, current_query);
+        query_id += 1;
     }
-    queries
+    (queries, query_id_2_names)
 }
 
 
