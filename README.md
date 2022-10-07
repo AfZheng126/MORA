@@ -46,11 +46,11 @@ The program requires a list of query files. These can be .fasta, .fq, or even co
 If a reference file is provided, its directory must also be written into the config file. If there is no reference file, you can download the fasta file representing the complete representative and reference bacterial genomes from NCBI RefSeq database by following the instructions from the [Microbial reference preparation](https://github.com/ivlachos/agamemnon/wiki/Use-case) from the Agamemnon Wiki. The index will be built when you run the program, so you don't have to manually do it. 
 
 # Taxonomic Information
-Normally, the output of the program is two columns telling you which reference each query came from. If taxonomic information is wanted as well about the assigned reference, extra files must be made. To do this, navigate to the scripts directory and run
+Normally, the output of the program is two columns telling you which reference each query came from. If taxonomic information about the assigned reference is wanted as well, extra files must be made. To do this, navigate to the scripts directory and run
 ```
 bash taxonomy.sh reference.fa
 ```
-where reference.fa is your reference files. After this is done, update TAXONOMY in the config file. 
+where reference.fa is your reference files. After this is done, update TAXONOMY in the config file to Taxonomy. 
 
 # Running ""
 After everything in the config files is updated according to your directories, run 
