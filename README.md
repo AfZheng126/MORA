@@ -52,13 +52,13 @@ bash taxonomy.sh reference.fa
 ```
 where reference.fa is your reference files. After this is done, update TAXONOMY in the config file to Taxonomy. 
 
-# Running ""
+# Running MORA
 After everything in the config files is updated according to your directories, run 
 ```
 snakemake --snakefile MORA --cores 24 --resources mem_mb=140000
 ```
 
-# Running "" as a Rust Program
+# Running MORA as a Rust Program
 If you already have a SAM file that has mappings scores stored in the AS:i: optional field, you can directly run the Rust program and skip the indexing and mapping steps. To do this and get outputs without taxonomic information, run 
 ```
 cargo run --release -- -s samfile -o output
