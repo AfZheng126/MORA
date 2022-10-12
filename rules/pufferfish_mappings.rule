@@ -21,7 +21,7 @@ rule mapping:
 	message:
 		"*** [Mapping of microbial fragments... | Threads: {threads}] -%s\n" % (str(time.strftime("%H:%M:%S")))
 	benchmark:
-		"benchmarking_files/{sample}_mapping.tsv"
+		"%s/{sample}/logs/mapping.tsv" % (config["directories"]["RESULTS"])
 	shell:
 		"""
 		{params.path}/pufferfish align -i {input.pufferfish_index} -1 {input.M1} -2 {input.M2} -t {threads} --coverageScoreRatio 0.5 -o {params.outDir}
