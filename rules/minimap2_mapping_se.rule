@@ -20,7 +20,7 @@ rule mappingSE:
 	message:
 		"*** [Mapping of microbial fragments... | Threads: {{3}}] - %s\n" % (str(time.strftime("%H:%M:%S")))
 	benchmark:
-		"benchmarking_files/{sample}_minimap2_mapping.tsv"
+		"%s/{sample}/logs/minimap2_mapping.tsv" % (config["directories"]["RESULTS"])
 	shell:
 		"""
 		{params.path}/minimap2 --split-prefix temp -ax map-ont -N 5 {input.index} {input.M} > {params.outDir}
