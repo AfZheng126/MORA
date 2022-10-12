@@ -25,7 +25,7 @@ rule quantification:
 	message:
 		"*** [Quantification of microbial fragments... | Threads: {threads}] - %s\n" % (str(time.strftime("%H:%M:%S")))
 	benchmark:
-		"benchmarking_files/{sample}_quantification.tsv"
+		"%s/{sample}/logs/quantification.tsv" % (config["directories"]["RESULTS"])
 	run:
 		string = "cargo run --release -- -s {} -c {} -o {} -b {} --method {} --segment_size {} --min_score_diff {} --max_abund_diff {}".format(
 			input.mappings, params.minCnt, params.outDir, params.batchSize, params.method, params.segment_size, params.score_diff, params.abund_diff)
