@@ -27,14 +27,14 @@ rule quantification:
 	benchmark:
 		"%s/{sample}/logs/quantification.tsv" % (config["directories"]["RESULTS"])
 	run:
-		string = "cargo run --release -- -s {} -c {} -o {} -b {} --method {} --segment_size {} --min_score_diff {} --max_abund_diff {}".format(
-			input.mappings, params.minCnt, params.outDir, params.batchSize, params.method, params.segment_size, params.score_diff, params.abund_diff)
+		string = "cargo run --release -- -s {} -c {} -o {} -b {} --method {} --segment_size {} --min_score_diff {} --max_abund_diff {} -t {}".format(
+			input.mappings, params.minCnt, params.outDir, params.batchSize, params.method, params.segment_size, params.score_diff, params.abund_diff, threads)
 		if params.abund_output != False:
 			if params.tax != False:
-				string += " -a {} -t {}".format(params.abund_dir, params.tax)
+				string += " -a {} -tax {}".format(params.abund_dir, params.tax)
 			else: 
 				string += " -a {}".format(params.abund_dir)
 		else:
 			if params.tax != False:
-				string += " -t {}".format(params.tax)
+				string += " -tax {}".format(params.tax)
 		shell(string)
