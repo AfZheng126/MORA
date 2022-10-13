@@ -67,3 +67,5 @@ For more options and customization, run
 ```
 cargo run -- -h
 ```
+ # Use Case
+ Sample data and the results from the Mora paper can be found [here](https://github.com/AfZheng126/MORA-data). To run the data, simply update the configuration file with where you download the data and run it with the snakemake command. 
