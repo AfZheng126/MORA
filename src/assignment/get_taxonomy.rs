@@ -1,6 +1,4 @@
 use std::{collections::{HashMap, HashSet}, fs::File, io::{BufReader, BufRead, Write}};
-use std::time::Instant;
-
 
 #[derive(Clone)]
 struct Lineage {
@@ -30,7 +28,6 @@ fn fix_empty_ranks(lineage: HashMap<String, Vec<Lineage>>) -> HashMap<String, Ve
         let mut new_val = Vec::new();
         // push first lineage as it is the key
         new_val.push(val[0].clone());
-        //println!("first: {} - {}", &val[0].get_rank(), &val[0].get_name());
         val.remove(0);
         // fill the rest in terms of rank
         for rank in 0..ranks.len(){
@@ -42,7 +39,6 @@ fn fix_empty_ranks(lineage: HashMap<String, Vec<Lineage>>) -> HashMap<String, Ve
                     break;
                 }
             }
-            //println!("{} - {}", &new_element.get_rank(), &new_element.get_name());
             new_val.push(new_element);
         }
         new_lineage.insert(key, new_val);
@@ -62,7 +58,6 @@ fn temp_accessions_2_tax_id(assignments: &HashMap<String, String>, at_file: Stri
     for (_, reference) in assignments {
         accessions.insert(reference.to_string());
     }
-    println!("at_file: {}", &at_file);
     let f = File::open(at_file).unwrap();
     let stream = BufReader::new(f);
     let lines: Vec<_> = stream.lines().collect();
@@ -203,14 +198,8 @@ fn write_results(out_dir: String, assignment2lineage: HashMap<String, (String, V
 
 
 pub(crate) fn tax_main(assignments: HashMap<String, String>, at_file: String, nodes_file: String, names_file: String, out_dir: String) {
-    let start = Instant::now();
     let (tax_id_accesions, accessions_2_tax) = temp_accessions_2_tax_id(&assignments, at_file);
-    println!("accessions to TaxID done. Time took: {:?}", start.elapsed());
-    let start = Instant::now();
     let lineage = build_taxonomy(nodes_file, names_file, &tax_id_accesions);
-    println!("lineage created: {:?}", start.elapsed());
-    let start = Instant::now();
     let assignments2lineage = assignments_2_lineage(assignments, lineage, accessions_2_tax);
-    println!("Lineage done. Writing results into {}, time took: {:?}", &out_dir, start.elapsed());
     write_results(out_dir, assignments2lineage);
 }
