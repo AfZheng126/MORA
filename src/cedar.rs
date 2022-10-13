@@ -8,17 +8,11 @@ use equivalence_class_builder::EquivalenceClassBuilder;
 mod stats;
 use stats::Stats;
 
-mod taxa;
-use taxa::TaxaNode;
-
 mod set_covers;
 use set_covers::greedy_set_cover;
 
 pub(crate) mod readers;
 use readers::{read_by_bash, Query, Reference};
-
-use crate::cedar::equivalence_class_builder::TGValue;
-use crate::cedar::readers::{read_rank, read_taxonomy};
 
 use self::equivalence_class_builder::TargetGroup;
 
@@ -29,6 +23,10 @@ use rayon::prelude::*;
 use std::sync::mpsc::channel;
 
 // helper functions 
+/*
+input: read_per_strain_prob_inst: <ref_id, mapping score>
+output: data needed to create an equivalence class
+*/
 fn create_eqb(read_per_strain_prob_inst: Vec<(usize, f32)>) -> (TargetGroup, Vec<f32>) {
     // sort the read_per_strain_prob_inst so that the usize is in order of smallest to biggest
     let sorted_vec = util::sort_vec(&read_per_strain_prob_inst);
@@ -68,9 +66,6 @@ pub(crate) struct Cedar {
     references: the hashmap of ref_ids to references, ref_id starts at 1
     */
     eqb: EquivalenceClassBuilder,
-    taxa_node_map: HashMap<usize, TaxaNode>,
-    ref_name_2_tax_id: HashMap<String, usize>,
-    ref_id_2_name: HashMap<usize, String>,
     pub(crate) query_id_2_name: HashMap<usize, String>,
     strain_coverage: HashMap<usize, f32>,
     strain_coverage_bins: HashMap<usize, Vec<usize>>, 
@@ -85,25 +80,15 @@ pub(crate) struct Cedar {
 }
 
 impl Cedar {
-    pub(crate) fn new(taxonomy_tree_filename: String, ref_name_2_tax_id_filename: String, 
-        flat_abundance: bool, batch_size: usize) -> Cedar {
-        println!{"Constructing Cedar"};
-
-        let mut ref_name_2_tax_id = HashMap::new();
-        let mut taxa_node_map = HashMap::new();
-        if !flat_abundance {
-            // map rank string values to enum values
-            ref_name_2_tax_id = read_rank(ref_name_2_tax_id_filename, batch_size);
-            taxa_node_map = read_taxonomy(taxonomy_tree_filename, batch_size);
-        }
-        
-        Cedar { eqb: EquivalenceClassBuilder::new(), taxa_node_map, ref_name_2_tax_id, strain_coverage: HashMap::new(), 
-            strain_coverage_bins: HashMap::new(), strain_abundance: HashMap::new(), read_cnt: 0, ref_id_to_tax_id: HashMap::new(), ref_id_2_name: HashMap::new(), query_id_2_name: HashMap::new(), cov: HashMap::new(), 
+    pub(crate) fn new() -> Cedar {
+        println!{"Constructing Cedar"};        
+        Cedar { eqb: EquivalenceClassBuilder::new(), strain_coverage: HashMap::new(), 
+            strain_coverage_bins: HashMap::new(), strain_abundance: HashMap::new(), read_cnt: 0, ref_id_to_tax_id: HashMap::new(), query_id_2_name: HashMap::new(), cov: HashMap::new(), 
             queries: HashMap::new(), references: HashMap::new(), taxa_abundance: HashMap::new(), unmapping_reads: 0 }
     }
 
     // find the stats of the current list of queries and also updates the equivalence class builder
-    fn process_reads_parallel(&mut self, flat_abundance: bool) -> Stats {
+    fn process_reads_parallel(&mut self) -> Stats {
         let (total_read_cnt, total_multi_mapped_reads, total_unmapped_reads) = (Mutex::new(0), Mutex::new(0), Mutex::new(0));
         let (sender, receiver) = channel();
  
@@ -119,6 +104,7 @@ impl Cedar {
                     let value = mapping.get_score() / self.references.get(&mapping.get_reference_id()).unwrap().ref_len as f32;
                     read_per_strain_prob_inst.push((mapping.get_reference_id(), value));
                 }
+                // sends sum of the mapping scores and the vector of <references. mapping scores / reference length> of a single query read
                 s.send((mapping_score, read_per_strain_prob_inst)).ok();
             } else {
                 *total_unmapped_reads.lock().unwrap() += 1;
@@ -135,17 +121,12 @@ impl Cedar {
                 let entry = self.strain_abundance.entry(read_per_strain_prob_inst[i].0).or_insert(0.0);
                 *entry += 1.0 / read_per_strain_prob_inst.len() as f32;
 
-                let tid;
-                if flat_abundance {
-                    tid = read_per_strain_prob_inst[i].0;
-                } else {
-                    let ref_name = &self.references[&read_per_strain_prob_inst[i].0].ref_name;
-                    tid = self.ref_name_2_tax_id[ref_name];
-                }
+                let tid = read_per_strain_prob_inst[i].0;
                 let entry = self.cov.entry(tid).or_insert(0);
                 *entry += mapping_score;
             }
 
+            // adds the data of a single read to the eqb
             let c = create_eqb((*x.1).to_vec());
             self.eqb.add_group(c.0, c.1);
         });
@@ -196,7 +177,7 @@ impl Cedar {
     segment_size: the size of each bin
     range_factorization: 
     */
-    pub(crate) fn load_mapping_info_parallel(&mut self, mapper_output_filename: String, flat_abundance: bool, segment_size: usize, batch_size: usize, method: String) {
+    pub(crate) fn load_mapping_info_parallel(&mut self, mapper_output_filename: String, segment_size: usize, batch_size: usize, method: String) {
         println!("Cedar: Load Mapping File");
         println!("Mapping Ouput File: {}", mapper_output_filename);
         
@@ -214,16 +195,10 @@ impl Cedar {
         let (sender, receiver) = channel();
 
         (0..self.references.len()).into_par_iter().for_each_with(sender, |s, index| {
-            let ref_name = &self.references.get(&(index + 1)).unwrap().ref_name;
             let ref_length = self.references.get(&(index + 1)).unwrap().ref_len;
             let bin_cnt = ref_length / segment_size + 1;
             let bins = vec![0; bin_cnt];
-            let tid;
-            if flat_abundance {
-                tid = index + 1;
-            } else {
-                tid = self.ref_name_2_tax_id.get(ref_name).unwrap().to_owned();
-            }
+            let tid = index + 1;
             let data = (index + 1, bins, tid);
             s.send(data).ok();
         });
@@ -240,7 +215,7 @@ impl Cedar {
         });
 
         // update the information in the Cedar struct
-        let stats = self.process_reads_parallel(flat_abundance);
+        let stats = self.process_reads_parallel();
         self.read_cnt = stats.get_total_read_cnt();
         self.update_bins(segment_size);
         self.calculate_coverage();
@@ -255,7 +230,7 @@ impl Cedar {
         mut strain_potentially_removable: HashMap<usize, bool>, min_cnt: f32, mut can_help: bool) -> (bool, HashMap<usize, bool>, HashMap<usize, bool>) {
 
         let mut previously_valid:u64 = 0;
-        let eq_vec = &self.eqb.count_vec;
+        let eq_map = &self.eqb.count_map;
 
         // rule to find potentially removable strains
         for i in 1..strain_cnt.len() {
@@ -270,10 +245,8 @@ impl Cedar {
         }
         // find the list of all references with a unique "valid" read mapped to them
         let mut unique_reads_refs = HashSet::new();
-        for i in 0..eq_vec.len() {
-            let tg = &eq_vec[i].0;
-            let v = &eq_vec[i].1;
-            let csize = v.get_weights().len();
+        for (tg, val) in eq_map {
+            let csize = val.get_weights().len();
             let mut eq_valids = Vec::new();
                 
             for read_mapping_cntr in 0..csize {
@@ -297,9 +270,9 @@ impl Cedar {
         // ambiguous eq is an equivalence class such that all its remaining refs has been chosen as potentially removable. 
         let mut ref_2_eqset:HashMap<usize, HashSet<u64>> = HashMap::new();       // key: reference_ID, value: set of ambiguous equivalence classes
         
-        for i in 0..eq_vec.len() {                
-            let tg = eq_vec[i].0.clone();
-            let v =  eq_vec[i].1.clone();
+        for (tg, val) in eq_map {                
+            let tg = tg.clone();
+            let v =  val.clone();
             let csize = v.get_weights().len();
             let mut total_valid_refs_in_cur_eq = 0;
             let mut potential_removable_cntr = 0;
@@ -402,8 +375,6 @@ impl Cedar {
     pub(crate) fn parallel_em(&mut self, max_iter: usize, eps: f32, min_cnt: f32) {
         self.eqb.finish();
 
-        let eq_vec:Vec<(TargetGroup, TGValue)> = self.eqb.count_vec.par_iter().cloned().collect();
-
         // finds the maximum sequence ID in the strains.
         let max_seq_id = self.strain_abundance.len();
 
@@ -423,10 +394,7 @@ impl Cedar {
             strain_cnt[*key] = *value;
         }
 
-        let tot_count: usize = eq_vec.par_iter().map(|x| x.1.get_count()).sum();
-
         // logger stuff
-        println!("Total starting count {}", tot_count);
         println!("Total mapped reads cnt {}", self.read_cnt); 
 
         let mut cntr:usize = 0;
@@ -444,11 +412,11 @@ impl Cedar {
 
             // M Step
             // Find the best (most likely) count assignment
-            let eq_vec = &self.eqb.count_vec;
+            let eq_map = &self.eqb.count_map;
 
             let (sender, receiver) = channel();
 
-            eq_vec.par_iter().for_each_with(sender, |s, eqc| {
+            eq_map.par_iter().for_each_with(sender, |s, eqc| {
                 let tg = &eqc.0;
                 let v = &eqc.1;
                 let csize = v.get_weights().len();
@@ -566,10 +534,9 @@ impl Cedar {
         eps: f32,
         min_cnt: f32,
         segment_size: usize,
-        flat_abundance: bool,
         batch_size: usize,
         method: String) {
-            self.load_mapping_info_parallel(mapper_output_name, flat_abundance, segment_size, batch_size, method);
+            self.load_mapping_info_parallel(mapper_output_name, segment_size, batch_size, method);
             self.parallel_em(max_iter, eps, min_cnt);
     }
 }

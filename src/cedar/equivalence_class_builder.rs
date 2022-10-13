@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use rayon::prelude::*;
-
 //Hash function
 fn calculate_hash<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
@@ -11,29 +9,20 @@ fn calculate_hash<T: Hash>(t: &T) -> u64 {
     s.finish()
 }
 
-// maybe make TargetGroup and TGValue a single
-
 #[derive(Eq, Hash, Clone)]
 pub(crate) struct TargetGroup{
     /*
     tgts: A vector of potential targets in the references
     hash: the hash value?
-    total_mass: ????
     valid: if the TargetGroup is a valid target group 
     */
     tgts: Vec<usize>,
     hash: u64,
-    // total_mass: f32, 
     valid: bool,
 }
 
 impl TargetGroup{
     //The different constructors for TargetGroup
-    fn new() -> TargetGroup {
-        TargetGroup{
-            tgts: Vec::new(), hash: 0, valid: true
-        }
-    }
     pub(crate) fn new_with_tgt(tgts: Vec<usize>) -> TargetGroup {
         let hash_value = calculate_hash(&tgts);
         TargetGroup{
@@ -70,7 +59,7 @@ pub(crate) struct TGValue {
     weights: vector over the references in the equivalence class, with value
         sum over reads of [score of read to this reference] / self.references[mapping.get_reference_id()].ref_len as f32
     combined_weights: 
-    count: number of references in this equivalence class
+    count: number of reads in this equivalence class
     */
     weights: Vec<f32>,
     combined_weights: Vec<f32>,
@@ -79,9 +68,6 @@ pub(crate) struct TGValue {
 
 impl TGValue {
     //The constructors for TGValue
-    fn new() -> TGValue {
-        TGValue { weights: Vec::new(), combined_weights: Vec::new(), count: 0}
-    }
     fn new_with_tgvalue_count(weights: Vec<f32>, count: usize) -> TGValue {
         TGValue { weights, combined_weights: Vec::new(), count}
     }
@@ -122,61 +108,45 @@ impl TGValue {
 #[derive(Clone)]
 pub(crate) struct EquivalenceClassBuilder {
     //active_: whether the EquivalenceClassBuilder is active or not
-    //count_map: a vector containing the TargetGroups and their TGValues
-    //count_vec: a vector containing TargetGroups and their TGValues
+    //count_map: a HashMap containing the TargetGroups and their TGValues
     active_: bool,
     pub(crate) count_map: HashMap<TargetGroup, TGValue>,
-    pub(crate) count_vec: Vec<(TargetGroup, TGValue)>, 
 }
 
 impl EquivalenceClassBuilder {
 
     pub(crate) fn new() -> EquivalenceClassBuilder {
-        EquivalenceClassBuilder { active_: false, count_map: HashMap::new(), count_vec: Vec::new() }
+        EquivalenceClassBuilder { active_: false, count_map: HashMap::new() }
     }
 
     //ends the EquivalenceClassBuilder
     pub(crate) fn finish(&mut self) {
         self.active_ = false;
         let mut total_count = 0;
-        self.count_vec.reserve(self.count_map.len());
-        for kv in &self.count_map {
-            let mut new_tg_value = TGValue::new_from(kv.1);
+        let mut new_map = HashMap::new();
+        for (tg, val) in &self.count_map {
+            let mut new_tg_value = TGValue::new_from(val);
             new_tg_value.normalize_aux();
-            total_count += kv.1.count;
-            self.count_vec.push((TargetGroup::new_with_copy(kv.0), new_tg_value));
+            total_count += val.count;
+            new_map.insert(TargetGroup::new_with_copy(tg), new_tg_value);
         }
-        println!("Counted {} total reads in the equivalence classes", total_count);
+        self.count_map = new_map;
+        println!("Counted {} total reads in {} equivalence classes", total_count, self.count_map.len());
     }
 
     // Adds a group to the count_map with the weights if the target group is not in count_map,
     // otherwise, it adds the weights to the weights of the existing entry. 
     pub(crate) fn add_group(&mut self, g: TargetGroup, weights: Vec<f32>) {
-        let index = self.count_vec.par_iter().position_any(|x| x.0 == g);
-        if index == None {
+        if self.count_map.contains_key(&g) {
+            let mut tg_val = TGValue::new_from(self.count_map.get(&g).unwrap());
+            tg_val.count += 1;
+            for i in 0..tg_val.weights.len() {
+                tg_val.weights[i] += weights[i];
+            }
+            self.count_map.insert(g, tg_val);
+        } else {
             let v = TGValue::new_with_tgvalue_count(weights, 1);
             self.count_map.insert(g, v);
-        } else {
-            self.count_vec[index.unwrap()].1.count += 1;
-            for i in 0..self.count_vec[index.unwrap()].1.weights.len() {
-                self.count_vec[index.unwrap()].1.weights[i] += weights[i];
-            }
-        }
-    }
-
-    // merges another equivalenceClassBuilder's data into the current equivlanceClassBuilder's data
-    // this does not delete the other EquivalenceClassBuilder
-    fn merge_unfinished_eqb(&mut self, eqb: &EquivalenceClassBuilder) {
-        for kv in eqb.count_map.keys() {
-            let value = eqb.count_map.get(kv).unwrap();
-            let new_key = TargetGroup::new_with_copy(kv);
-            let new_value = TGValue::new_from(value);
-
-            let it = self.count_map.entry(new_key).or_insert(new_value);
-            for i in 0..it.weights.len() {
-                it.weights[i] += value.weights[i];
-            }
-            it.count += value.count;
         }
     }
 }

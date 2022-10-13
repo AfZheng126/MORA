@@ -20,7 +20,8 @@ impl Lineage {
     }
 }
 
-/* Add NA to the missing taxonomy ranks
+/* 
+    Add NA to the missing taxonomy ranks
 */
 fn fix_empty_ranks(lineage: HashMap<String, Vec<Lineage>>) -> HashMap<String, Vec<Lineage>> {
     let ranks = vec!["species".to_string(), "genus".to_string(), "family".to_string(), "order".to_string(), "class".to_string(), "phylum".to_string(), "superkingdom".to_string()];
@@ -31,7 +32,7 @@ fn fix_empty_ranks(lineage: HashMap<String, Vec<Lineage>>) -> HashMap<String, Ve
         new_val.push(val[0].clone());
         //println!("first: {} - {}", &val[0].get_rank(), &val[0].get_name());
         val.remove(0);
-        // first the rest in terms of rank
+        // fill the rest in terms of rank
         for rank in 0..ranks.len(){
             let mut new_element = Lineage::new(ranks[rank].to_string(), "NA".to_string());
             for i in 0..val.len() {
@@ -146,8 +147,7 @@ fn build_taxonomy(nodes_file: String, names_file: String, tax_id_accessions: &Ha
     lineage
 }
 
-
-
+// find the lineages of the assignments
 fn assignments_2_lineage(assignments: HashMap<String, String>, lineage: HashMap<String, Vec<Lineage>>, accessions_2_tax: HashMap<String, String>) -> HashMap<String, (String, Vec<Lineage>)> {
     let mut assignments2lineage = HashMap::new();
     for (query, reference) in &assignments {
@@ -159,6 +159,7 @@ fn assignments_2_lineage(assignments: HashMap<String, String>, lineage: HashMap<
     }
     assignments2lineage
 }
+
 
 fn create_na_lineage() -> Vec<Lineage> {
     let mut v = Vec::new();
@@ -177,6 +178,7 @@ Inputs:
     out_dir: where to write the results
     assignment2lineage: the results
 */
+
 fn write_results(out_dir: String, assignment2lineage: HashMap<String, (String, Vec<Lineage>)>) {
     let mut results = Vec::new();
     let mut output = File::create(out_dir).unwrap();

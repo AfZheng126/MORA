@@ -10,7 +10,7 @@ unique_elements: The number of unique elements
 pub(crate) fn greedy_set_cover(sets: Vec<Vec<u64>>, weights: Vec<Vec<f32>>, uniqu_elements: usize) -> Vec<usize> {
     let mut tmp = HashSet::new();                     // what has currently been covered
     let mut left_over:HashSet<u64> = HashSet::new();                // what has not been covered 
-    let mut final_cover = Vec::new();           // the output
+    let mut final_cover = Vec::new();                   // the output
     let mut covers = HashSet::new();                // ennumeration of the sets
     
     for i in 1..(uniqu_elements + 1) {

@@ -15,8 +15,12 @@ use rand::prelude::*;
 mod get_taxonomy;
 use get_taxonomy::tax_main;
 /*
+    abundance: <ref_id, estimated abundance from cedar>
+    current_abundance: <ref_id, current abundance>
     assignments: <ref_id, <score, query_name>>
     output_assignments: <query_name, ref_id>
+    query_size: the total number of queries (not counting unmapped queries)
+    max_diff: maximum allowed difference between abundance and current abundance
 */
 struct AssignmentMachine {
     abundance: HashMap<usize, f32>,
@@ -86,7 +90,7 @@ impl AssignmentMachine {
             } else if query.mappings.len() == 0 {
                 unmapped_queries += 1;
                 updated_queries.remove(&query_id);
-                self.add_assignment(query_id, 0, 0);
+                self.add_assignment(query_id, usize::MAX, 0);
             }
         }
         println!("unique mapping queries: {}, unmapped queries: {}, current assigned length: {}", unique_mapping_queries, unmapped_queries, self.output_assignments.len());
@@ -120,10 +124,11 @@ impl AssignmentMachine {
                 }
             }
         }
-        //map the queries
+        //sort the bins from high scores to low scores
         let mut keys: Vec<usize> = score_bins.keys().cloned().collect();
         keys.par_sort_by(|a, b| b.cmp(a));
-
+        
+        // map the queries in order
         for key in keys {
             for (query_id, ref_id) in &score_bins[&key] {
                 if queries.contains_key(query_id) && self.has_space(ref_id){
@@ -133,7 +138,8 @@ impl AssignmentMachine {
             }
         }
         println!("queries have been mapped to the best possible reference. left overs: {}", queries.len());
-        // assignment of the left overs
+        
+        // assignment of the left overs by tring to open up space
         let cannot_move = Mutex::new(0);
         let left_over_queries = Mutex::new(HashMap::new());
         if queries.len() != 0 {
@@ -163,7 +169,6 @@ impl AssignmentMachine {
             });
 
             let mut res: Vec<_> = receiver.iter().collect();
-
             res.iter_mut().for_each(|x| {
                 let (old_ref_id, id_of_moved, original_score, new_ref_id, new_score, 
                     query_id, map_ref_id, map_score) = x;
@@ -218,18 +223,17 @@ pub(crate) fn assign_mappings(cedar: Cedar, max_diff: f32, score_max_diff: f32) 
     println!("final assignment done. output length: {}", machine.output_assignments.len());
 
     //write final assignments
-    let mut unmapped = 0;
     let mut output = HashMap::new();
     for (query_id, id) in machine.output_assignments {
         let name = cedar.query_id_2_name[&query_id].to_string();
-        if id == 0{
+        if id == 0{                                                         // queries that could not be assigned to anything (shouldn't be any as we assign leftovers by probability)
             output.insert(name, "NA".to_string());
-            unmapped += 1;
-        } else {
+        } else if id == usize::MAX {                                        // queries that couldn't be mapped to any reference from the first aligner
+            output.insert(name, "NOT ALIGNED".to_string());  
+        } else {                                                            // queries that were assigned to something
             output.insert(name, references[&id].ref_name.to_string());
         }
     }
-    println!("unmapped: {}", unmapped);
     output
 }
 
@@ -304,7 +308,7 @@ pub(crate) fn write_output(output_filename: String, output: HashMap<String, Stri
     println!("File has been written");
 }
 
-// write the output into a file in the following way: query_name    reference_name  reference_taxid reference
+// write the output into a file in the following way: query_name    reference_name  reference_species   reference_genus     reference_family    ...     reference_superkingdom
 pub(crate) fn write_output_with_taxonomy(output_filename: String, output: HashMap<String, String>, at_file: String, nodes_file: String, names_file: String) {
     tax_main(output, at_file, nodes_file, names_file, output_filename)
 }

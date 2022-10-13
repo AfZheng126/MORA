@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::Mutex;
 
 #[derive(Clone, PartialEq, Eq, Hash, Copy)]
 pub(crate) struct Mapping {
@@ -35,12 +34,22 @@ impl Mapping {
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Query {
-    pub(crate) query_name: usize, 
+    /*
+    Query = read, otherwise there are too many things that start with an r. 
+
+    query_id: the id to get the String of the query name
+    cnt: the number of reference it maps to
+    len: the length of the query
+    total_score: sum of all the mapping scores
+    unmapped: if cnt > 0
+    */
+    pub(crate) query_id: usize, 
     cnt: usize,
     len: u32, 
     pub(crate) mappings: HashSet<Mapping>,        
     is_paired: bool, 
     total_score: f32,
+    unmapped: bool,
 }
 
 impl Query {
@@ -49,7 +58,8 @@ impl Query {
         for map in &mappings {
             total_score += map.get_score();
         }
-        Query { query_name, cnt, len, mappings, is_paired, total_score}
+        let unmapped = {cnt != 0};
+        Query { query_id: query_name, cnt, len, mappings, is_paired, total_score, unmapped}
     }
 
     pub(crate) fn get_cnt(&self) -> usize { self.cnt }
@@ -61,7 +71,8 @@ impl Query {
             self.mappings.insert(mapping);
             self.cnt += 1;
             self.total_score += mapping.get_score();
-        }   
+            self.unmapped = true;
+        }
     }
 
     // returns the id and score of the best and second best mappings
@@ -104,8 +115,6 @@ use rayon::prelude::*;
 use std::fs::File;
 use std::io::{BufReader, BufRead};
 
-use super::taxa::TaxaNode;
-
 /*
 Inputs:
 file_name: directory for SAM file
@@ -123,7 +132,7 @@ pub(crate) fn read_by_bash(file_name: String, batch_size: usize, method: String)
     println!("references are done: {}", references.len());
 
     let (queries, query_id_2_name) = analyze_mappings_from_sam(stream, &reference_to_id, method, first_read);
-    println!("queries are done: {}", queries.len());
+    println!("reads are done: {}", queries.len());
     (references, queries, query_id_2_name)
 }
 
@@ -193,6 +202,7 @@ fn analyze_header<R: BufRead>(mut stream: R) -> (HashMap<usize, Reference>, Hash
     (references, reference_to_id, stream, first_read)
 }
 
+// get the information from a single line in the SAM file
 fn line_to_mapping(line: Vec<&str>, references: &HashMap<String, usize>, method: &String) -> (String, bool, usize, Mapping) {
     let record_name = line[0].to_string();
     let flag_value:u32 = line[1].parse().unwrap();
@@ -215,8 +225,8 @@ fn line_to_mapping(line: Vec<&str>, references: &HashMap<String, usize>, method:
         let mut tag_value = String::from_utf8(tag[5..].to_vec()).expect("Tag value not in UTF-8");
         tag_value = tag_value.replace("\n", "");
         if tag[0..=1] == vec![b'A', b'S'] {
-            score = tag_value.parse().unwrap(); // it should be a positive integer, sometimes it was min(i32) for C++, but I considered that as 0.
-            if method == "bowtie2" {
+            score = tag_value.parse().unwrap(); 
+            if method == "bowtie2" { // This is where you add different ways to interperet AS:i scores for different intial aligners
                 score += 160;
             }
             if score <= 0 { // I assume that score = 0 means that it doesn't map
@@ -234,7 +244,7 @@ stream: the thing that reads the SAM file
 references: the references
 method: to determine how to analyze the mapping scores (mainly for bowtie2)
 first_line: the left over line from analyzing the header part of the SAM file
-Output
+Output: 
 (queries, names for queries)
 */
 fn analyze_mappings_from_sam<R: BufRead>(mut stream: R, references: &HashMap<String, usize>, method: String, first_line: String) -> (HashMap<usize, Query>, HashMap<usize, String>) {
@@ -280,11 +290,11 @@ fn analyze_mappings_from_sam<R: BufRead>(mut stream: R, references: &HashMap<Str
         let mut current_query = Query::new(query_id, 0, record_length as u32, HashSet::new(), is_paired);
         //check the first line to see if that query is already in our HashMap
         let mut current_name = record_name.clone();
-        let found = &query_id_2_names.par_iter().find_any(|(id, name)| name.to_string() == current_name);
+        let found = &query_id_2_names.par_iter().find_any(|(_id, name)| name.to_string() == current_name);
         let mut found_existing = false;
         let mut existing_id = 0;
         if !found.is_none() {
-            current_query.query_name = *found.unwrap().0;
+            current_query.query_id = *found.unwrap().0;
             existing_id = *found.unwrap().0;
             for map in queries[found.unwrap().0].mappings.clone(){
                 current_query.add_mapping(map);
@@ -320,100 +330,4 @@ fn analyze_mappings_from_sam<R: BufRead>(mut stream: R, references: &HashMap<Str
         query_id += 1;
     }
     (queries, query_id_2_names)
-}
-
-
-pub(crate) fn read_rank(ref_2_tax_id_filename: String, batch_size: usize) -> HashMap<String, usize> {    
-    let mut ref_2_tax_id = HashMap::new();
-    let f = File::open(ref_2_tax_id_filename).unwrap();
-    let mut stream = BufReader::with_capacity(batch_size, f);
-    
-    let mut left_over: String = "".to_string();
-    let mut has_left_over = false;
-
-    loop {
-        let buffer = std::str::from_utf8(stream.fill_buf().unwrap()).unwrap().to_string();
-        let length = buffer.len();
-        stream.consume(length);
-        if length == 0 && !has_left_over{ break; }
-        
-        let buffer_string;
-        if &left_over == "" {
-            buffer_string = buffer;
-        } else {
-            buffer_string = [left_over.clone(), buffer].concat();
-        }
-
-        let mut lines: Vec<_> = buffer_string.split('\n').collect();
-        left_over = lines.pop().unwrap().to_string();
-        has_left_over = !(&left_over == "");
-        if lines.len() == 0 { continue; }
-
-        let temp = (0..(lines.len())).into_par_iter().fold(|| HashMap::new(), |mut acc, index| {
-            let chunks:Vec<_> = lines[index].split('\t').collect(); // chunks should be [name, id]
-            let id: usize = chunks[1].parse().unwrap();
-            acc.insert(chunks[0].to_string(), id);
-            acc
-        }).reduce(|| HashMap::new(), |m1, m2| {
-            m2.iter().fold(m1, |mut acc, (key, value)| {
-                // all the strings in the rank 2 taxId should be unique
-                acc.entry(key.clone()).or_insert(value.clone());
-                acc
-            })
-        });
-        ref_2_tax_id.par_extend(temp);
-    }
-    ref_2_tax_id
-}
-
-pub(crate) fn read_taxonomy(taxonomy_tree_filename: String, batch_size: usize) -> HashMap<usize, TaxaNode>{
-    let mut taxa_node_map = HashMap::new();
-    
-    let f = File::open(taxonomy_tree_filename).unwrap();
-    let mut stream = BufReader::with_capacity(batch_size, f);
-    
-    let mut left_over: String = "".to_string();
-    let mut has_left_over = false;
-
-    loop {
-        let buffer = std::str::from_utf8(stream.fill_buf().unwrap()).unwrap().to_string();
-        let length = buffer.len();
-        stream.consume(length);
-        if length == 0 && !has_left_over{ break; }
-        
-        let buffer_string;
-        if &left_over == "" {
-            buffer_string = buffer;
-        } else {
-            buffer_string = [left_over.clone(), buffer].concat();
-        }
-
-        let mut lines: Vec<_> = buffer_string.split('\n').collect();
-        left_over = lines.pop().unwrap().to_string();
-        has_left_over = !(&left_over == "");
-        if lines.len() == 0 { continue; }
-        
-        let temp = lines.into_par_iter().fold(|| HashMap::new(), |mut acc, line| {
-            let chunks:Vec<_> = line.split('|').collect();
-            if chunks.len() <= 2{
-                acc
-            } else {
-                let id:usize = chunks[0].trim().parse().unwrap();
-                let pid:usize = chunks[1].trim().parse().unwrap();
-                let rank = chunks[2..].concat().trim().to_string();
-                
-                acc.insert(id, TaxaNode::new(id, pid, TaxaNode::str_to_rank(&rank)));
-
-                acc
-            }
-        }).reduce(|| HashMap::new(), |m1, m2| {
-            m2.iter().fold(m1, |mut acc, (key, value)| {
-                // all the strings in the rank 2 taxId should be unique
-                acc.entry(key.clone()).or_insert(value.clone());
-                acc
-            })
-        });
-        taxa_node_map.par_extend(temp);
-    }
-    taxa_node_map
 }
