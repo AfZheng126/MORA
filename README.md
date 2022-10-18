@@ -1,9 +1,9 @@
 # MORA
 
-Mora is an aligner that re-aligns query sequences to a unique reference.
+Mora is an aligner that re-aligns query reads to a unique reference.
 
 Main steps of Mora: 
-1. Find the potential mappings of the queries and output them as a SAM file using an initial aligner.
+1. Find the potential mappings of the query reads and output them as a SAM file using an initial aligner.
 2. Calculate the expected abundance levels of the references based on the SAM file.
 3. Assign each query that had at least one valid mapping to a reference based on their mapping scores and the expected abundance levels.
 4. Output the results into a txt file. 
@@ -77,4 +77,4 @@ where reference.fa is your reference files. After this is done, update TAXONOMY 
 
 
  # Use Case
- Sample data and the results from the Mora paper can be found [here](https://github.com/AfZheng126/MORA-data). To run the data, simply update the configuration file with where you download the data and run it with the snakemake command. 
+Sample data and the results from the Mora paper can be found [here](https://github.com/AfZheng126/MORA-data). To run the data, simply update the configuration file with where you download the data and run it with the snakemake command. 
