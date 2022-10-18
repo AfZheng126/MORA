@@ -8,12 +8,35 @@ Main steps of Mora:
 3. Assign each query that had at least one valid mapping to a reference based on their mapping scores and the expected abundance levels.
 4. Output the results into a txt file. 
 
+# Requirements
+[Rust](https://www.rust-lang.org/tools/install) and Cargo need to be installed and added to PATH
+
 # Installation
 ```
 git clone https://github.com/AfZheng126/MORA.git
 cd MORA
 bash install.sh
-cargo build
+cargo build --release
+```
+
+# Running MORA
+After everything in the config files (see below) is updated according to your directories, run 
+```
+snakemake --snakefile MORA --cores 24 --resources mem_mb=140000
+```
+
+# Running MORA as a Rust Program
+If you already have a SAM file that has mappings scores stored in the AS:i: optional field, you can directly run the Rust program and skip the indexing and mapping steps. To do this and get outputs without taxonomic information, run the following commands in the Mora directory.
+```
+cargo run --release -- -s samfile -o output
+```
+For more options and customization, run 
+```
+cargo run -- -h
+```
+If the specific binary is wanted, you can also run 
+```
+target/release/mora -h
 ```
 
 # Config File
@@ -21,12 +44,12 @@ The parameters of the config.yaml file used for the snakemake pipline are listed
 
 | Parameter | Description |
 | ---- | --- |
-| BINARIES | Binary folder directory (default: ) - do not edit |
+| BINARIES | Binary folder directory (default: binaries) - do not edit |
 | REFERENCES | Directory to reference fasta file |
-| SAMPLES_DIR | Directory to query fasta files |
+| SAMPLES_DIR | Directory to folder containing query fasta files |
 | RESULTS | Directory to write the results |
 | FILES_EXT | Query files extension, i.e. .fq, .fq.gz etc |
-| MAPPING_MODE | Algorithm for the initial mapping - do not edit |
+| MAPPING_MODE | Algorithm for the initial mapping - (pufferfish, bowtie2, minimap2)|
 | STRATEGY | "PE" for paired-end samples or "SE" for single-end samples |
 | TYPE | RNA or DNA host-specific samples - right now only supports DNA |
 | BATCH_SIZE | Size of buffer for reading sam file |
@@ -52,20 +75,6 @@ bash taxonomy.sh reference.fa
 ```
 where reference.fa is your reference files. After this is done, update TAXONOMY in the config file to Taxonomy. 
 
-# Running MORA
-After everything in the config files is updated according to your directories, run 
-```
-snakemake --snakefile MORA --cores 24 --resources mem_mb=140000
-```
 
-# Running MORA as a Rust Program
-If you already have a SAM file that has mappings scores stored in the AS:i: optional field, you can directly run the Rust program and skip the indexing and mapping steps. To do this and get outputs without taxonomic information, run 
-```
-cargo run --release -- -s samfile -o output
-```
-For more options and customization, run 
-```
-cargo run -- -h
-```
  # Use Case
  Sample data and the results from the Mora paper can be found [here](https://github.com/AfZheng126/MORA-data). To run the data, simply update the configuration file with where you download the data and run it with the snakemake command. 
