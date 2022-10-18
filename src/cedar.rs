@@ -1,3 +1,8 @@
+/*
+Code for cedar was copied and re-implemented in Rust from the C++ Cedar module from Agamemnon.
+*/
+
+
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
