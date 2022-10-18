@@ -34,7 +34,7 @@ For more options and customization, run
 ```
 cargo run -- -h
 ```
-If the specific binary is wanted, you can also run 
+If you are runing from another directory and the specific binary is wanted, run 
 ```
 target/release/mora -h
 ```
