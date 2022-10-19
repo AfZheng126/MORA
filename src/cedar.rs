@@ -177,7 +177,7 @@ impl Cedar {
     segment_size: the size of each bin
     range_factorization: 
     */
-    pub(crate) fn load_mapping_info_parallel(&mut self, mapper_output_filename: String, segment_size: usize, batch_size: usize, method: String) {
+    pub(crate) fn load_mapping_info_parallel(&mut self, mapper_output_filename: String, segment_size: usize, method: String) {
         println!("Cedar: Load Mapping File");
         println!("Mapping Ouput File: {}", mapper_output_filename);
         
@@ -526,9 +526,8 @@ impl Cedar {
         eps: f32,
         min_cnt: f32,
         segment_size: usize,
-        batch_size: usize,
         method: String) {
-            self.load_mapping_info_parallel(mapper_output_name, segment_size, batch_size, method);
+            self.load_mapping_info_parallel(mapper_output_name, segment_size, method);
             self.parallel_em(max_iter, eps, min_cnt);
     }
 }

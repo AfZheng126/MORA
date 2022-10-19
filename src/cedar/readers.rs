@@ -183,7 +183,7 @@ fn analyze_alignments(mut f: Reader, method: String) -> (HashMap<usize, Query>, 
             Ok(value) => {
                 if let Aux::U8(v) = value { score = v as i32; }
                 if let Aux::I8(v) = value { score = v as i32; }
-            } Err(e) => {
+            } Err(_e) => {
                 score = 0;
             }
         }

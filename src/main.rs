@@ -1,6 +1,5 @@
 extern crate clap;
 use clap::{Arg, App};
-use std::{time::Instant, collections::HashMap, fs::File, io::{BufReader, BufRead}};
 
 mod cedar;
 use cedar::Cedar;
@@ -31,13 +30,6 @@ fn main() {
                             .help("path for abundance output")
                             .takes_value(true)
                             .display_order(4))
-                        .arg(Arg::with_name("Batch Size")
-                            .short('b')
-                            .long("batch_size")
-                            .help("batch_size for reading SAM")
-                            .default_value("100000000")
-                            .takes_value(true)
-                            .display_order(3))
                         .arg(Arg::with_name("Max EM iterations")
                             .long("max_em")
                             .help("maximum allowed iterations of EM")
@@ -94,7 +86,6 @@ fn main() {
     let sam_file = commands.value_of("SAM File").unwrap().to_string();
     let min_cnt: f32 = commands.value_of("Min Count").unwrap().parse().unwrap();
     let max_iter: usize = commands.value_of("Max EM iterations").unwrap().parse().unwrap();
-    let batch_size: usize = commands.value_of("Batch Size").unwrap().parse().unwrap();
     let segment_size: usize = commands.value_of("segment size").unwrap().parse().unwrap();
     let method: String = commands.value_of("Method").unwrap().to_string();
     let threads:usize = commands.value_of("Threads").unwrap().parse().unwrap();
@@ -103,7 +94,7 @@ fn main() {
     rayon::ThreadPoolBuilder::new().num_threads(threads).build_global().unwrap();
 
     let mut cedar = Cedar::new(); 
-    cedar.run_parallel(sam_file, max_iter, 0.001, min_cnt, segment_size, batch_size, method);
+    cedar.run_parallel(sam_file, max_iter, 0.001, min_cnt, segment_size, method);
 
     if commands.is_present("Abund output") {
         cedar.serialize_simple(commands.value_of("Abund output").unwrap().to_string());
