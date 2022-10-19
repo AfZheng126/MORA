@@ -8,7 +8,6 @@ rule quantification:
 	params:
 		outDir = "%s/{sample}/final.txt" % (config["directories"]["RESULTS"]),
 		minCnt = config["parameters"]["MIN_CNT"],
-		batchSize = config["parameters"]["BATCH_SIZE"],
 		score_diff = config["parameters"]["MAX_SCORE_DIFFERENCE"],
 		abund_diff = config["parameters"]["MAX_ABUNDANCE_DIFFERENCE"],
 		segment_size = config["parameters"]["SEGMENT_SIZE"],
@@ -27,8 +26,8 @@ rule quantification:
 	benchmark:
 		"%s/{sample}/logs/quantification.tsv" % (config["directories"]["RESULTS"])
 	run:
-		string = "cargo run --release -- -s {} -c {} -o {} -b {} --method {} --segment_size {} --min_score_diff {} --max_abund_diff {} -t {}".format(
-			input.mappings, params.minCnt, params.outDir, params.batchSize, params.method, params.segment_size, params.score_diff, params.abund_diff, threads)
+		string = "cargo run --release -- -s {} -c {} -o {} --method {} --segment_size {} --min_score_diff {} --max_abund_diff {} -t {}".format(
+			input.mappings, params.minCnt, params.outDir, params.method, params.segment_size, params.score_diff, params.abund_diff, threads)
 		if params.abund_output != False:
 			if params.tax != False:
 				string += " -a {} --tax {}".format(params.abund_dir, params.tax)
