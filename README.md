@@ -12,6 +12,7 @@ Main steps of Mora:
 [Rust](https://www.rust-lang.org/tools/install) and Cargo need to be installed and added to PATH.
 
 # Installation
+To be able to use the full pipeline, run the following commands. If you only want to run Mora as a Rust program with a SAM/BAM file as input, you do not need to run bash install.sh. 
 ```
 git clone https://github.com/AfZheng126/MORA.git
 cd MORA
