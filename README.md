@@ -53,7 +53,6 @@ The parameters of the config.yaml file used for the snakemake pipline are listed
 | MAPPING_MODE | Algorithm for the initial mapping - (pufferfish, bowtie2, minimap2)|
 | STRATEGY | "PE" for paired-end samples or "SE" for single-end samples |
 | TYPE | RNA or DNA host-specific samples - right now only supports DNA |
-| BATCH_SIZE | Size of buffer for reading sam file |
 | MIN_CNT | Minimum number of counts for a reference to be considered valid |
 | MIN_SCORE_DIFFERENCE | Minimum score difference for a query to be assgined second |
 | MAX_ABUNDANCE_DIFFERENCE | Maximum difference allowed between the initial abundance estimation and the abundances created from assignments |
