@@ -9,7 +9,7 @@ Main steps of Mora:
 4. Output the results into a txt file. 
 
 # Requirements
-[Rust](https://www.rust-lang.org/tools/install) and Cargo need to be installed and added to PATH
+[Rust](https://www.rust-lang.org/tools/install) and Cargo need to be installed and added to PATH.
 
 # Installation
 ```
