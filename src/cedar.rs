@@ -1,8 +1,3 @@
-/*
-Code for cedar was copied and re-implemented in Rust from the C++ Cedar module from Agamemnon.
-*/
-
-
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
@@ -17,7 +12,7 @@ mod set_covers;
 use set_covers::greedy_set_cover;
 
 pub(crate) mod readers;
-use readers::{read_by_bash, Query, Reference};
+use readers::{read_initial_alignments, Query, Reference};
 
 use self::equivalence_class_builder::TargetGroup;
 
@@ -187,7 +182,7 @@ impl Cedar {
         println!("Mapping Ouput File: {}", mapper_output_filename);
         
         // load the information from the file
-        let c = read_by_bash(mapper_output_filename, batch_size, method);
+        let c = read_initial_alignments(mapper_output_filename, method);
         self.references = c.0;
         self.queries = c.1;
         self.query_id_2_name = c.2;
@@ -200,11 +195,11 @@ impl Cedar {
         let (sender, receiver) = channel();
 
         (0..self.references.len()).into_par_iter().for_each_with(sender, |s, index| {
-            let ref_length = self.references.get(&(index + 1)).unwrap().ref_len;
+            let ref_length = self.references.get(&index).unwrap().ref_len;
             let bin_cnt = ref_length / segment_size + 1;
             let bins = vec![0; bin_cnt];
-            let tid = index + 1;
-            let data = (index + 1, bins, tid);
+            let tid = index;
+            let data = (index, bins, tid);
             s.send(data).ok();
         });
 
@@ -359,7 +354,7 @@ impl Cedar {
             }
 
             // go over the list of references
-            for ref_cntr in 1..(strain_valid.len() + 1) {
+            for ref_cntr in 0..strain_valid.len() {
                 if strain_potentially_removable[&ref_cntr] && remaining_refs.contains(&ref_cntr) != true {
                     strain_valid.insert(ref_cntr, false);
                 }
@@ -367,7 +362,7 @@ impl Cedar {
 
             let mut total_valid = 0;
             for s in 0..strain_valid.len() {
-                if strain_valid[&(s+1)] {
+                if strain_valid[&s] {
                     total_valid += 1;
                 }
             }
@@ -382,25 +377,20 @@ impl Cedar {
 
         // finds the maximum sequence ID in the strains.
         let max_seq_id = self.strain_abundance.len();
-
-        let mut new_strain_cnt = vec![0.0; max_seq_id + 1];
-        //let mut strain_cnt:Vec<f32> = vec![0.0; (max_seq_id + 1) as usize];
+        let mut new_strain_cnt = vec![0.0; max_seq_id];
         let mut strain_valid:HashMap<usize, bool> = HashMap::new();
         let mut strain_potentially_removable:HashMap<usize, bool> = HashMap::new();
 
-        for i in 1..(max_seq_id + 1) {
+        for i in 0..(max_seq_id) {
             strain_valid.insert(i, true);
             strain_potentially_removable.insert(i, false);
         }
 
         //clone the data in self.strain
-        let mut strain_cnt = vec![0.0; max_seq_id + 1];
+        let mut strain_cnt = vec![0.0; max_seq_id];
         for (key, value) in &self.strain_abundance {
             strain_cnt[*key] = *value;
         }
-
-        // logger stuff
-        println!("Total mapped reads cnt {}", self.read_cnt); 
 
         let mut cntr:usize = 0;
         let mut converged = false;
@@ -415,8 +405,7 @@ impl Cedar {
                 strain_potentially_removable = a.2;
             }
 
-            // M Step
-            // Find the best (most likely) count assignment
+            // M Step: Find the best (most likely) count assignment
             let eq_map = &self.eqb.count_map;
 
             let (sender, receiver) = channel();
@@ -476,8 +465,7 @@ impl Cedar {
         let mut num_of_valids = 0;
 
         let valid_strains_cnt:Vec<f32> = strain_cnt.par_iter().enumerate().filter_map(|(index, val)| {
-            if index == 0 { None }
-            else if strain_valid[&index] {Some(*val)}
+            if strain_valid[&index] {Some(*val)}
             else{ None }}).collect();
 
         let sum:f32 = valid_strains_cnt.par_iter().sum();
@@ -501,11 +489,10 @@ impl Cedar {
 
     // outputs file with the references and their estimated abundancies
     pub(crate) fn serialize_simple(&mut self, output_filename: String) {
-        println!("Write results into the file: {}", &output_filename);
-        println!("# of strains: {}", self.strain_abundance.len());
+        println!("Writing abundanceies into the file: {}", &output_filename);
 
         let mut output = File::create(output_filename).unwrap();
-        for i in 1..self.strain_abundance.len() + 1 {
+        for i in 0..self.strain_abundance.len(){
             let mut data = i.to_string();
             data.push_str("\t");
             data.push_str(&self.references.get(&i).unwrap().ref_name);

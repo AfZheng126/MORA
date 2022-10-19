@@ -42,7 +42,7 @@ impl AssignmentMachine {
 
     // assign a query to a reference with a score
     fn add_assignment(&mut self, query_id: usize, ref_id: usize, score: usize) {
-        if ref_id != 0 {
+        if ref_id != usize::MAX - 1 {
             let entry = self.current_abundance.entry(ref_id).or_insert(0.0);
             *entry += 1.0 / self.query_size as f32;
         }
@@ -55,7 +55,7 @@ impl AssignmentMachine {
 
     // check if a reference still has space to be assigned a query
     fn has_space(&self, ref_id: &usize) -> bool {
-        if *ref_id == 0 {
+        if *ref_id == usize::MAX - 1 {
             true
         } else {
             self.current_abundance[ref_id] < self.abundance[ref_id] + self.max_diff
@@ -102,7 +102,7 @@ impl AssignmentMachine {
         let mut updated_queries = queries.clone();
         for (query_id, query) in &queries {
             let (ref_id, score) = assign_best(query, &self, score_max_diff);
-            if ref_id != 0 {
+            if ref_id != usize::MAX - 1 {
                 updated_queries.remove(query_id);
                 if self.has_space(&ref_id) {
                     self.add_assignment(*query_id, ref_id, score as usize);
@@ -205,7 +205,6 @@ pub(crate) fn assign_mappings(cedar: Cedar, max_diff: f32, score_max_diff: f32) 
     let mut machine = AssignmentMachine::new(cedar.get_strain_abundance(), queries.len() - cedar.get_unmapping_reads(), max_diff);
 
     println!("performing assignment of quries\n");
-    println!("query length: {}", queries.len());
 
     //initial assignment
     queries = machine.initial_assignment(queries);
@@ -226,7 +225,7 @@ pub(crate) fn assign_mappings(cedar: Cedar, max_diff: f32, score_max_diff: f32) 
     let mut output = HashMap::new();
     for (query_id, id) in machine.output_assignments {
         let name = cedar.query_id_2_name[&query_id].to_string();
-        if id == 0{                                                         // queries that could not be assigned to anything (shouldn't be any as we assign leftovers by probability)
+        if id == usize::MAX - 1 {                                                         // queries that could not be assigned to anything (shouldn't be any as we assign leftovers by probability)
             output.insert(name, "NA".to_string());
         } else if id == usize::MAX {                                        // queries that couldn't be mapped to any reference from the first aligner
             output.insert(name, "NOT ALIGNED".to_string());  
@@ -245,10 +244,10 @@ fn assign_best(query: &Query, machine: &AssignmentMachine, score_max_diff: f32) 
         if  machine.has_space(&r1){
             (r1, s1)
         } else {
-            (0, 0.0)
+            (usize::MAX - 1, 0.0)
         }
     } else {
-        (0, 0.0)
+        (usize::MAX - 1, 0.0)
     }
 }
 
@@ -294,8 +293,6 @@ fn try_open_up_space(assignments: &HashMap<usize, HashSet<usize>>, machine: &Ass
 
 // write the output into a file in the following way: query_name    reference_name
 pub(crate) fn write_output(output_filename: String, output: HashMap<String, String>) {
-    println!("Write results into the file: {}", &output_filename);
-
     let mut output_file = File::create(output_filename).unwrap();
     for (q_name, r_name) in output {
         let mut data = q_name;
@@ -305,7 +302,6 @@ pub(crate) fn write_output(output_filename: String, output: HashMap<String, Stri
         data.push_str("\n");
         output_file.write(data.as_bytes()).ok();
     }
-    println!("File has been written");
 }
 
 // write the output into a file in the following way: query_name    reference_name  reference_species   reference_genus     reference_family    ...     reference_superkingdom
