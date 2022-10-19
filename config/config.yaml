@@ -9,7 +9,6 @@ parameters:
         MAPPING_MODE: pufferfish
         STRATEGY: PE
         TYPE: DNA
-        BATCH_SIZE: 100000000
         MIN_CNT: 0.1
         MAX_SCORE_DIFFERENCE: 20.0
         MAX_ABUNDANCE_DIFFERENCE: 0.001
