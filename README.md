@@ -1,4 +1,4 @@
-# MORA
+# Mora
 
 Mora is an aligner that re-aligns query reads to a unique reference.
 
@@ -12,7 +12,7 @@ Main steps of Mora:
 [Rust](https://www.rust-lang.org/tools/install) and Cargo need to be installed and added to PATH.
 
 # Installation
-To be able to use the full pipeline, run the following commands. If you only want to run Mora as a Rust program with a SAM/BAM file as input, you do not need to run bash install.sh. 
+To be able to use the full pipeline, run the following commands. If you only want to run Mora as a Rust program with a SAM/BAM file as input, you do not need to run the bash install.sh command. 
 ```
 git clone https://github.com/AfZheng126/MORA.git
 cd MORA
@@ -20,13 +20,13 @@ bash install.sh
 cargo build --release
 ```
 
-# Running MORA
+# Running Mora
 After everything in the config files (see below) is updated according to your directories, run 
 ```
 snakemake --snakefile MORA --cores 24 --resources mem_mb=140000
 ```
 
-# Running MORA as a Rust Program
+# Running Mora as a Rust Program
 If you already have a SAM file that has mappings scores stored in the AS:i: optional field, you can directly run the Rust program and skip the indexing and mapping steps. To do this and get outputs without taxonomic information, run the following commands in the Mora directory.
 ```
 cargo run --release -- -s samfile -o output
