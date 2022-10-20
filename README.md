@@ -31,14 +31,19 @@ If you already have a SAM file that has mappings scores stored in the AS:i: opti
 ```
 cargo run --release -- -s samfile -o output
 ```
-For more options and customization, run 
-```
-cargo run -- -h
-```
 If you are runing from another directory and the specific binary is wanted, run 
+```
+target/release/mora -s samifile -o output
+```
+A sample sam file is provided in the samples directory. To use it, use the following command. 
+```
+taget/release/mora -s samples/test.sam -o test.txt
+```
+For more options and customization, run 
 ```
 target/release/mora -h
 ```
+
 
 # Config File
 The parameters of the config.yaml file used for the snakemake pipline are listed below: 
