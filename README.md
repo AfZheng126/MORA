@@ -1,13 +1,12 @@
 # Mora
 
-Mora is an aligner that re-aligns query reads to a unique reference.
+Mora is an aligner that re-assigns query reads to a unique reference.
 
 Main steps of Mora: 
-1. Find the potential mappings of the query reads and output them as a SAM file using an initial aligner.
-2. Calculate the expected abundance levels of the references based on the SAM file.
+1. Calculate the expected abundance levels of the references based on the input SAM file.
 3. Assign each query that had at least one valid mapping to a reference based on their mapping scores and the expected abundance levels.
 4. Output the results into a txt file. 
-\For more details, please consult the (preprint) [paper](https://biorxiv.org/cgi/content/short/2022.10.18.512733v1).
+For more details, please consult the (preprint) [paper](https://biorxiv.org/cgi/content/short/2022.10.18.512733v1).
 
 # Requirements
 [Rust](https://www.rust-lang.org/tools/install) and Cargo need to be installed and added to PATH.
