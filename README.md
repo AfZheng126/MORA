@@ -1,6 +1,6 @@
 # Mora
 
-Mora is an aligner that re-assigns query reads to a unique reference.
+Mora is an read re-assigner that re-assigns query reads to a unique reference.
 
 Main steps of Mora: 
 1. Calculate the expected abundance levels of the references based on the input SAM file.
