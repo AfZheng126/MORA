@@ -13,18 +13,11 @@ For more details, please consult the (preprint) [paper](https://www.biorxiv.org/
 [Rust](https://www.rust-lang.org/tools/install) and Cargo need to be installed and added to PATH.
 
 # Installation
-To be able to use the full pipeline, run the following commands. If you only want to run Mora as a Rust program with a SAM/BAM file as input, you do not need to run the bash install.sh command. 
+To install and download the necessary rust packages to run MORA, run the following commands. 
 ```
 git clone https://github.com/AfZheng126/MORA.git
 cd MORA
-bash install.sh
 cargo build --release
-```
-
-# Running Mora
-After everything in the config files (see below) is updated according to your directories, run 
-```
-snakemake --snakefile MORA --cores 24 --resources mem_mb=140000
 ```
 
 # Running Mora as a Rust Program
@@ -44,29 +37,6 @@ For more options and customization, run
 ```
 target/release/mora -h
 ```
-
-
-# Config File
-The parameters of the config.yaml file used for the snakemake pipline are listed below: 
-
-| Parameter | Description |
-| ---- | --- |
-| BINARIES | Binary folder directory (default: binaries) - do not edit |
-| REFERENCES | Directory to reference fasta file |
-| SAMPLES_DIR | Directory to folder containing query fasta files |
-| RESULTS | Directory to write the results |
-| FILES_EXT | Query files extension, i.e. .fq, .fq.gz etc |
-| MAPPING_MODE | Algorithm for the initial mapping - (pufferfish, bowtie2, minimap2)|
-| STRATEGY | "PE" for paired-end samples or "SE" for single-end samples |
-| TYPE | RNA or DNA host-specific samples - right now only supports DNA |
-| MIN_CNT | Minimum number of counts for a reference to be considered valid |
-| MIN_SCORE_DIFFERENCE | Minimum score difference for a query to be assgined second |
-| MAX_ABUNDANCE_DIFFERENCE | Maximum difference allowed between the initial abundance estimation and the abundances created from assignments |
-| SEGMENT_SIZE | Size to split references into bins |
-| ABUNDANCE_OUTPUT | Whether to output estimated abundance levels |
-| TAXONOMY | Directory of taxonomic information to write results with taxonomic classes (NA to not include taxonomic information in the results) |
-| MEM_MB | Amount of memory to be allocated to snakemake |
-| TPS | Number of threads to be used per sample |
 
 # Query Files
 The program requires a list of query files. These can be .fasta, .fq, or even compressed files. If the query files are pair-end quries, their name must be of the form *_1.fq and *_2.fq, where the file extension can something else. The directory of these query files must be written into the config file. 
