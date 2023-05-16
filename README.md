@@ -31,7 +31,7 @@ target/release/mora -s samifile -o output
 ```
 A sample sam file is provided in the samples directory. To use it, use the following command. 
 ```
-taget/release/mora -s samples/test.sam -o test.txt
+target/release/mora -s samples/test.sam -o test.txt
 ```
 For more options and customization, run 
 ```
