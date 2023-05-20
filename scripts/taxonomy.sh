@@ -12,8 +12,8 @@ fi
 echo "Getting accession numbers from reference FASTA file"
 echo ""
 
-python checker.py $REFERENCE_FASTA ../Taxonomy/accessions.txt
-#grep ">" $REFERENCE_FASTA | awk '{print $1}' | awk -F ">" '{print $2}' > ../Taxonomy/accessions.txt
+#python checker.py $REFERENCE_FASTA ../Taxonomy/accessions.txt
+grep ">" $REFERENCE_FASTA | awk '{print $1}' | awk -F ">" '{print $2}' > ../Taxonomy/accessions.txt
 
 echo "Finding accession number TaxIDs"
 echo ""
