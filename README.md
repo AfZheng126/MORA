@@ -10,7 +10,7 @@ Main steps of Mora:
 For more details, please consult the (preprint) [paper](https://www.biorxiv.org/content/10.1101/2022.10.18.512733v2).
 
 # Requirements
-[Rust](https://www.rust-lang.org/tools/install) and Cargo need to be installed and added to PATH.
+Rust and Cargo need to be installed to and added to PATH. The instructions can be found on the [Rust website](https://www.rust-lang.org/tools/install).
 
 # Installation
 To install and download the necessary rust packages to run MORA, run the following commands. 
