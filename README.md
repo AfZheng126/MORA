@@ -13,6 +13,10 @@ For more details, please consult the (preprint) [paper](https://www.biorxiv.org/
 Rust and Cargo need to be installed to and added to PATH. The instructions can be found on the [Rust website](https://www.rust-lang.org/tools/install) or in the [Rust cookbook](https://doc.rust-lang.org/cargo/getting-started/installation.html) if you are using the command line.
 
 # Installation
+
+1. [rust](https://www.rust-lang.org/tools/install) **version > 1.60.0** and associated tools such as cargo are required and assumed to be in PATH.
+2. Standard tools such as gcc, make, cmake may be needed. 
+
 To install and download the necessary rust packages to run MORA, run the following commands. 
 ```
 git clone https://github.com/AfZheng126/MORA.git
