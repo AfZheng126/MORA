@@ -11,10 +11,11 @@ parameters:
         TYPE: DNA
         MIN_CNT: 0.1
         MAX_SCORE_DIFFERENCE: 20.0
-        MAX_ABUNDANCE_DIFFERENCE: 0.001
+        MAX_ABUNDANCE_DIFFERENCE: 0.00001
         SEGMENT_SIZE: 100
         ABUNDANCE_OUTPUT: True
         TAXONOMY: False
+        FINAL_ASSIGNMENT_METHOD: "none"
 resources:
         MEM_MB: 100000
         TPS: 8
