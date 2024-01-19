@@ -201,7 +201,7 @@ impl AssignmentMachine {
 
     // leave left over queries unassigned
     fn leave_left_overs(&mut self, queries: HashMap<usize, Query>) {
-        for (name, query) in queries {
+        for (name, _query) in queries {
             self.add_assignment(name, usize::MAX - 1, 0);
         }
     }
