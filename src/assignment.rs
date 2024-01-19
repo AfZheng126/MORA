@@ -32,19 +32,19 @@ struct AssignmentMachine {
 }
 
 impl AssignmentMachine {
-    fn new(abundance: HashMap<usize, f32>, query_size: usize, max_diff: f32) -> AssignmentMachine {
+    fn new(abundance: HashMap<usize, f32>, query_size: usize) -> AssignmentMachine {
         let mut current_abundance = HashMap::new();
         for (key, _) in &abundance {
             current_abundance.insert(*key, 0.0);
         }
-        AssignmentMachine { abundance, current_abundance, assignments: HashMap::new(), output_assignments: HashMap::new(), query_size, max_diff }
+        AssignmentMachine { abundance, current_abundance, assignments: HashMap::new(), output_assignments: HashMap::new(), query_size, max_diff: 1.0/query_size}
     }
 
     // assign a query to a reference with a score
     fn add_assignment(&mut self, query_id: usize, ref_id: usize, score: usize) {
         if ref_id != usize::MAX - 1 {
             let entry = self.current_abundance.entry(ref_id).or_insert(0.0);
-            *entry += 1.0 / self.query_size as f32;
+            *entry += 1.0 / self.query_size as f32;                             // update the new current abundance
         }
         self.output_assignments.insert(query_id, ref_id);
 
@@ -113,7 +113,7 @@ impl AssignmentMachine {
     }
 
     //assignment based on abudancies
-    fn assign_based_on_abundance(&mut self, mut queries: HashMap<usize, Query>, original_queries: &HashMap<usize, Query>) {
+    fn assign_based_on_abundance(&mut self, mut queries: HashMap<usize, Query>, original_queries: &HashMap<usize, Query>, method: String) {
         //create score bins
         let mut score_bins = HashMap::new();
         for (query_id, query) in &queries {
@@ -179,9 +179,12 @@ impl AssignmentMachine {
         }
         println!("cannot move: {}", cannot_move.into_inner().unwrap());
 
-        //assign the queries that cannot be mapped using the first method based on probability
-        self.assign_based_on_prob(left_over_queries.into_inner().unwrap());
-
+        //assign the queries that cannot be mapped based on what method was specified. Default mode is none
+        if method == "none" {
+            self.leave_left_overs(left_over_queries.into_inner().unwrap());
+        } else {
+            self.assign_based_on_prob(left_over_queries.into_inner().unwrap());
+        }
     }
 
     //assignment based on probability with weights being the mapping scores
@@ -196,13 +199,19 @@ impl AssignmentMachine {
         }
     }
 
+    // leave left over queries unassigned
+    fn leave_left_overs(&mut self, queries: HashMap<usize, Query>) {
+        for (name, query) in queries {
+            self.add_assignment(name, usize::MAX - 1, 0);
+        }
+    }
 }
 
 // assign each mapping to a unique reference based on their mapping scores and the predicted abundance levels
-pub(crate) fn assign_mappings(cedar: Cedar, max_diff: f32, score_max_diff: f32) -> HashMap<String, String> {
+pub(crate) fn assign_mappings(cedar: Cedar, score_max_diff: f32, method: String) -> HashMap<String, String> {
     let mut queries = cedar.get_queries();
     let references = cedar.get_references();
-    let mut machine = AssignmentMachine::new(cedar.get_strain_abundance(), queries.len() - cedar.get_unmapping_reads(), max_diff);
+    let mut machine = AssignmentMachine::new(cedar.get_strain_abundance(), queries.len() - cedar.get_unmapping_reads());
 
     println!("performing assignment of quries\n");
 
@@ -217,7 +226,7 @@ pub(crate) fn assign_mappings(cedar: Cedar, max_diff: f32, score_max_diff: f32) 
     println!("second assignment done. query length: {}", queries.len());
 
     //assignment of the rest of the queries based on abundancies
-    machine.assign_based_on_abundance(queries, &cedar.get_queries());
+    machine.assign_based_on_abundance(queries, &cedar.get_queries(), method);
 
     println!("final assignment done. output length: {}", machine.output_assignments.len());
 
@@ -225,8 +234,8 @@ pub(crate) fn assign_mappings(cedar: Cedar, max_diff: f32, score_max_diff: f32) 
     let mut output = HashMap::new();
     for (query_id, id) in machine.output_assignments {
         let name = cedar.query_id_2_name[&query_id].to_string();
-        if id == usize::MAX - 1 {                                                         // queries that could not be assigned to anything (shouldn't be any as we assign leftovers by probability)
-            output.insert(name, "NA".to_string());
+        if id == usize::MAX - 1 {                                           // queries that could not be assigned to anything (if using method 1: leave left over reads un-assigned)
+            output.insert(name, "NOT ALIGNED".to_string());
         } else if id == usize::MAX {                                        // queries that couldn't be mapped to any reference from the first aligner
             output.insert(name, "NOT ALIGNED".to_string());  
         } else {                                                            // queries that were assigned to something

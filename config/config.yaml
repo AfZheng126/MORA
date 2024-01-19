@@ -11,7 +11,6 @@ parameters:
         TYPE: DNA
         MIN_CNT: 0.1
         MAX_SCORE_DIFFERENCE: 20.0
-        MAX_ABUNDANCE_DIFFERENCE: 0.00001
         SEGMENT_SIZE: 100
         ABUNDANCE_OUTPUT: True
         TAXONOMY: False

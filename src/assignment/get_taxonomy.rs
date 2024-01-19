@@ -198,8 +198,8 @@ fn write_results(out_dir: String, assignment2lineage: HashMap<String, (String, V
 
 
 pub(crate) fn tax_main(assignments: HashMap<String, String>, at_file: String, nodes_file: String, names_file: String, out_dir: String) {
-    let (tax_id_accesions, accessions_2_tax) = temp_accessions_2_tax_id(&assignments, at_file);
-    let lineage = build_taxonomy(nodes_file, names_file, &tax_id_accesions);
-    let assignments2lineage = assignments_2_lineage(assignments, lineage, accessions_2_tax);
+    let (tax_id_accesions, accessions_2_tax) = temp_accessions_2_tax_id(&assignments, at_file); // map the accessions to the taxonomic IDs
+    let lineage = build_taxonomy(nodes_file, names_file, &tax_id_accesions); // create lineages of the references
+    let assignments2lineage = assignments_2_lineage(assignments, lineage, accessions_2_tax); //
     write_results(out_dir, assignments2lineage);
 }

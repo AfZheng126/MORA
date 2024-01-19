@@ -48,11 +48,11 @@ fn main() {
                             .takes_value(true)
                             .default_value("0.5")
                             .display_order(3))
-                        .arg(Arg::with_name("Max abund diff")
-                            .long("max_abund_diff")
-                            .help("maximum difference between abundance levels")
+                        .arg(Arg::with_name("Final Method")
+                            .long("final_method")
+                            .help("Assignment method for left over reads")
                             .takes_value(true)
-                            .default_value("0.001")
+                            .default_value("none")
                             .display_order(3))
                         .arg(Arg::with_name("Output")
                             .short('o')
@@ -100,11 +100,11 @@ fn main() {
         cedar.serialize_simple(commands.value_of("Abund output").unwrap().to_string());
     }
 
-    let abund_diff: f32 = commands.value_of("Max abund diff").unwrap().parse().unwrap();
+    let final_method: String = commands.value_of("Final Method").unwrap().to_string();
     let score_diff: f32 = commands.value_of("Min score diff").unwrap().parse().unwrap();
     let output_filename = commands.value_of("Output").unwrap();
 
-    let output = assign_mappings(cedar, abund_diff, score_diff);
+    let output = assign_mappings(cedar, score_diff, final_method);
 
     println!("\nWriting results to {}", &output_filename);
     if commands.is_present("taxonomy") {
