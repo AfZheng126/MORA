@@ -37,7 +37,7 @@ impl AssignmentMachine {
         for (key, _) in &abundance {
             current_abundance.insert(*key, 0.0);
         }
-        AssignmentMachine { abundance, current_abundance, assignments: HashMap::new(), output_assignments: HashMap::new(), query_size, max_diff: 1.0/query_size}
+        AssignmentMachine { abundance, current_abundance, assignments: HashMap::new(), output_assignments: HashMap::new(), query_size, max_diff: 1.0/(query_size as f32)}
     }
 
     // assign a query to a reference with a score
