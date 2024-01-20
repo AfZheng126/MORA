@@ -8,8 +8,8 @@ mod assignment;
 use crate::assignment::{assign_mappings, write_output, write_output_with_taxonomy};
 
 fn main() {
-    let commands = App::new("LRA").version("1.0").author("126andrew.zheng@gmail.com")
-                        .about("Long-Read Re-Alignment")
+    let commands = App::new("Mora").version("1.0").author("andrewf.zheng@mail.utoronto.ca")
+                        .about("Read Re-Assignment")
                         .arg(Arg::with_name("SAM File")
                             .short('s')
                             .long("sam")
