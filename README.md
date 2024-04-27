@@ -7,7 +7,7 @@ Main steps of Mora:
 3. Assign each query that had at least one valid mapping to a reference based on their mapping scores and the expected abundance levels.
 4. Output the results into a txt file. 
 
-For more details, please consult the (preprint) [paper](https://www.biorxiv.org/content/10.1101/2022.10.18.512733v2).
+For more details, please consult the [paper](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-024-05768-9).
 
 # Requirements
 Rust and Cargo need to be installed to and added to PATH. The instructions can be found on the [Rust website](https://www.rust-lang.org/tools/install) or in the [Rust cookbook](https://doc.rust-lang.org/cargo/getting-started/installation.html) if you are using the command line.
