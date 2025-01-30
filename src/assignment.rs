@@ -83,7 +83,7 @@ impl AssignmentMachine {
         for (query_id, query) in queries {
             let maps: Vec<Mapping> = query.mappings.into_iter().collect();
 
-            if query.mappings.len() == 1 | check_if_read_is_uniquely_mapping(maps) {
+            if query.mappings.len() == 1 | check_if_read_is_uniquely_mapping(&maps) {
                 unique_mapping_queries += 1;
 
                 updated_queries.remove(&query_id);
