@@ -99,17 +99,6 @@ impl AssignmentMachine {
         updated_queries
     }
 
-    // helper to check if read is uniquely mapping
-    fn check_if_read_is_uniquely_mapping(maps: &Vec<Mapping>) -> bool {
-        let reference_id = maps[0].get_reference_id();
-        for map in maps {
-            if map.get_reference_id() != reference_id {
-                return false;
-            }
-        }
-        return true;
-    }
-
     // secondary assignment of queries whose best mapping is a lot better than the secondary mappings
     fn secondary_assignment(&mut self, queries: HashMap<usize, Query>, score_max_diff: f32) -> HashMap<usize, Query>{
         let mut updated_queries = queries.clone();
@@ -218,6 +207,18 @@ impl AssignmentMachine {
             self.add_assignment(name, usize::MAX - 1, 0);
         }
     }
+}
+
+
+// helper to check if read is uniquely mapping
+fn check_if_read_is_uniquely_mapping(maps: &Vec<Mapping>) -> bool {
+    let reference_id = maps[0].get_reference_id();
+    for map in maps {
+        if map.get_reference_id() != reference_id {
+            return false;
+        }
+    }
+    return true;
 }
 
 // assign each mapping to a unique reference based on their mapping scores and the predicted abundance levels
