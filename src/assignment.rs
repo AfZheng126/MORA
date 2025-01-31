@@ -88,7 +88,7 @@ impl AssignmentMachine {
 
                 updated_queries.remove(&query_id);
                 self.add_assignment(query_id, maps[0].get_reference_id(), 1000);
-            } else if query.mappings.len() == 0 {
+            } else if maps.len() == 0 {
                 unmapped_queries += 1;
                 updated_queries.remove(&query_id);
                 self.add_assignment(query_id, usize::MAX, 0);
