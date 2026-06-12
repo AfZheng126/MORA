@@ -81,17 +81,19 @@ impl AssignmentMachine {
         
         println!("total query_size = {}", self.query_size);
         for (query_id, query) in queries {
-            if query.mappings.len() == 1 {
+            let maps: Vec<Mapping> = query.mappings.into_iter().collect();
+
+            if {maps.len() == 1} || check_if_read_is_uniquely_mapping(&maps) {
                 unique_mapping_queries += 1;
 
                 updated_queries.remove(&query_id);
-                let maps: Vec<Mapping> = query.mappings.into_iter().collect();
                 self.add_assignment(query_id, maps[0].get_reference_id(), 1000);
-            } else if query.mappings.len() == 0 {
+            } else if maps.len() == 0 {
                 unmapped_queries += 1;
                 updated_queries.remove(&query_id);
                 self.add_assignment(query_id, usize::MAX, 0);
             }
+
         }
         println!("unique mapping queries: {}, unmapped queries: {}, current assigned length: {}", unique_mapping_queries, unmapped_queries, self.output_assignments.len());
         updated_queries
@@ -205,6 +207,18 @@ impl AssignmentMachine {
             self.add_assignment(name, usize::MAX - 1, 0);
         }
     }
+}
+
+
+// helper to check if read is uniquely mapping
+fn check_if_read_is_uniquely_mapping(maps: &Vec<Mapping>) -> bool {
+    let reference_id = maps[0].get_reference_id();
+    for map in maps {
+        if map.get_reference_id() != reference_id {
+            return false;
+        }
+    }
+    return true;
 }
 
 // assign each mapping to a unique reference based on their mapping scores and the predicted abundance levels
