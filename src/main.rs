@@ -50,7 +50,7 @@ fn main() {
                             .display_order(3))
                         .arg(Arg::with_name("Final Method")
                             .long("final_method")
-                            .help("Assignment method for left over reads")
+                            .help("Assignment method for left over reads, defualt none means leave unassigned otherwise anything not 'none' means assigned based on probability")
                             .takes_value(true)
                             .default_value("none")
                             .display_order(3))
