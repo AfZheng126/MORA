@@ -489,7 +489,7 @@ impl Cedar {
 
     // outputs file with the references and their estimated abundancies
     pub(crate) fn serialize_simple(&mut self, output_filename: String) {
-        println!("Writing abundanceies into the file: {}", &output_filename);
+        println!("Writing abundances into the file: {}", &output_filename);
 
         let mut output = File::create(output_filename).unwrap();
         for i in 0..self.strain_abundance.len(){

@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use std::sync::mpsc::channel;
 use rand_distr::WeightedAliasIndex;
 
-use rayon::prelude::{IntoParallelIterator, ParallelIterator, IntoParallelRefIterator};
+use rayon::prelude::{ParallelIterator, IntoParallelRefIterator};
 use rayon::slice::ParallelSliceMut;
 
 use crate::cedar::Cedar;
@@ -192,8 +192,8 @@ impl AssignmentMachine {
     //assignment based on probability with weights being the mapping scores
     fn assign_based_on_prob(&mut self, queries: HashMap<usize, Query>) {
         for (name, query) in queries {
-            let mappings:Vec<Mapping> = query.mappings.into_par_iter().collect();
-            let dist  = WeightedAliasIndex::new(mappings.par_iter().map(|mapping| mapping.get_score()).collect()).unwrap();
+            let mappings:Vec<Mapping> = query.mappings.into_iter().collect();
+            let dist  = WeightedAliasIndex::new(mappings.iter().map(|mapping| mapping.get_score()).collect()).unwrap();
             // assign randomly
             let mut rng = thread_rng();
             let chosen = &mappings[dist.sample(&mut rng)];
@@ -227,7 +227,7 @@ pub(crate) fn assign_mappings(cedar: Cedar, score_max_diff: f32, method: String)
     let references = cedar.get_references();
     let mut machine = AssignmentMachine::new(cedar.get_strain_abundance(), queries.len() - cedar.get_unmapping_reads());
 
-    println!("performing assignment of quries\n");
+    println!("performing assignment of queries\n");
 
     //initial assignment
     queries = machine.initial_assignment(queries);
@@ -293,7 +293,7 @@ fn try_open_up_space(assignments: &HashMap<usize, HashSet<usize>>, machine: &Ass
 
     // sort the keys from smallest to largest
     let mut keys: Vec<&usize> = assignments.keys().collect();
-    keys.par_sort_by(|a, b| a.cmp(b));
+    keys.sort_by(|a, b| a.cmp(b));
 
     // try find a query that can be moved
     for key in &keys {

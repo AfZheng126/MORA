@@ -96,8 +96,8 @@ impl Query {
     }
 
     pub(crate) fn sort_mappings(&self) -> Vec<&Mapping> {
-        let mut ordered_vec: Vec<&Mapping> = self.mappings.par_iter().collect();
-        ordered_vec.par_sort_by(|a, b| b.get_score().partial_cmp(&a.get_score()).unwrap());
+        let mut ordered_vec: Vec<&Mapping> = self.mappings.iter().collect();
+        ordered_vec.sort_by(|a, b| b.get_score().partial_cmp(&a.get_score()).unwrap());
         ordered_vec
     }
 }
