@@ -175,17 +175,19 @@ fn analyze_alignments(mut f: Reader, method: String) -> (HashMap<usize, Query>, 
         let record = r.unwrap(); 
         let reference_id = record.tid();
         let query_name = str::from_utf8(record.qname()).unwrap();
-        let mut score:i32 = 0;
+        let mut score:i32;
         let position = record.pos();
         let paired = record.is_paired();
         let query_len = record.seq_len() as u32;
         match record.aux(b"AS") {
-            Ok(value) => {
-                if let Aux::U8(v) = value { score = v as i32; }
-                if let Aux::I8(v) = value { score = v as i32; }
-            } Err(_e) => {
-                score = 0;
-            }
+            Ok(Aux::U8(v))    => score = v as i32,
+            Ok(Aux::I8(v))    => score = v as i32,
+            Ok(Aux::U16(v))    => score = v as i32,
+            Ok(Aux::I16(v))    => score = v as i32,
+            Ok(Aux::U32(v))    => score = v as i32,
+            Ok(Aux::I32(v))    => score = v as i32,
+            Ok(Aux::Float(v)) => score = (v * 100.0).round() as i32,
+            _                 => score = 0,
         }
         if method == "bowtie2" { // This is where you add different ways to interperet AS:i scores for different intial aligners
             score += 160;
@@ -206,7 +208,12 @@ fn analyze_alignments(mut f: Reader, method: String) -> (HashMap<usize, Query>, 
             current_name = query_name.to_string();
             current_query.add_mapping(mapping);
         }
-    }    
+    }
+
+    if query_id != 0 {
+        queries.insert(query_id, current_query);
+        query_id_2_names.insert(query_id, current_name.to_string());
+    }
 
     (queries, query_id_2_names)
 }
