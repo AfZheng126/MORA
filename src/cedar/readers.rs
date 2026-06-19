@@ -189,7 +189,7 @@ fn analyze_alignments(mut f: Reader, method: String) -> (HashMap<usize, Query>, 
             Ok(Aux::Float(v)) => score = (v * 100.0).round() as i32,
             _                 => score = 0,
         }
-        if method == "bowtie2" { // This is where you add different ways to interperet AS:i scores for different intial aligners
+        if method == "bowtie2" { // This is where you add different ways to interpret AS:i scores for different initial aligners
             score += 160;
         }
         if score <= 0 { // I assume that score = 0 means that it doesn't map

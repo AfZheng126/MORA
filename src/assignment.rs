@@ -265,7 +265,7 @@ impl AssignmentMachine {
         None
     }
 
-    //assignment based on abudancies
+    //assignment based on abundances
     fn assign_based_on_abundance(&mut self, mut queries: HashMap<usize, Query>, original_queries: &HashMap<usize, Query>, method: String) {
         //create score bins
         let mut score_bins = HashMap::new();
@@ -292,7 +292,7 @@ impl AssignmentMachine {
         }
         println!("queries have been mapped to the best possible reference. left overs: {}", queries.len());
 
-        // assignment of the left overs by tring to open up space
+        // assignment of the left overs by trying to open up space
         let leftover_queries = if queries.is_empty() {
             HashMap::new()
         } else {
@@ -352,7 +352,7 @@ pub(crate) fn assign_mappings(cedar: Cedar, score_max_diff: f32, method: String)
     //initial assignment
     queries = machine.initial_assignment(queries);
 
-    println!("intial assignment done. query length: {}", queries.len());
+    println!("initial assignment done. query length: {}", queries.len());
     
     //secondary assignment
     queries = machine.secondary_assignment(queries, score_max_diff);
