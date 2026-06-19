@@ -133,46 +133,66 @@ impl AssignmentMachine {
         queries
     }
 
-    fn compute_candidate_moves(&self, original_queries: &HashMap<usize, Query>)
-        -> HashMap<usize, VecDeque<CandidateMove>>
+    fn compute_candidate_moves(
+        &self,
+        original_queries: &HashMap<usize, Query>,
+        leftovers: &HashMap<usize, Query>
+    ) -> HashMap<usize, VecDeque<CandidateMove>>
     {
-        let mut candidates = HashMap::new();
+        let mut max_thresholds: HashMap<usize, f32> = HashMap::new();
+        for query in leftovers.values() {
+            let total = query.get_total_score();
 
-        for (ref_id, bins) in &self.assignments {
+            for mapping in &query.mappings {
+                let new_threshold = mapping.get_score() / total;
+                let cur_threshold = max_thresholds
+                    .entry(mapping.get_reference_id())
+                    .or_insert(f32::NEG_INFINITY);
+
+                if new_threshold > *cur_threshold {
+                    *cur_threshold = new_threshold;
+                }
+            }
+        }
+
+        let mut candidates = HashMap::new();
+        for (&ref_id, &threshold_limit) in &max_thresholds {
+            let bins = match self.assignments.get(&ref_id) {
+                Some(b) => b,
+                None => continue
+            };
             let mut list = Vec::new();
+
             for (score, incumbents) in bins {
                 for inc_id in incumbents {
                     let inc = &original_queries[inc_id];
                     let total_score = inc.get_total_score();
-                    let mut best: Option<(f32, usize, usize)> = None;
 
-                    for m in &inc.mappings {
-                        let alt_ref_id = m.get_reference_id();
+                    for mapping in &inc.mappings {
+                        let alt_ref_id = mapping.get_reference_id();
 
-                        if alt_ref_id != *ref_id && self.has_space(&alt_ref_id) {
-                            let cost = 2.0 * (*score as f32) / total_score - m.get_score() / total_score;
+                        if alt_ref_id != ref_id && self.has_space(&alt_ref_id) {
+                            let cost = 2.0 * (*score as f32) / total_score
+                                - mapping.get_score() / total_score;
 
-                            if best.is_none_or(|(c, _, _)| cost < c) {
-                                best = Some((cost, alt_ref_id, m.get_score() as usize));
+                            if cost < threshold_limit {
+                                list.push(CandidateMove {
+                                    cost,
+                                    incumbent_id: *inc_id,
+                                    incumbent_score: *score,
+                                    alt_ref_id,
+                                    alt_score: mapping.get_score() as usize
+                                })
                             }
                         }
                     }
-
-                    if let Some((cost, alt_ref_id, alt_score)) = best {
-                        list.push(
-                            CandidateMove {
-                                cost,
-                                incumbent_id: *inc_id,
-                                incumbent_score: *score,
-                                alt_ref_id,
-                                alt_score
-                            }
-                        )
-                    }
                 }
             }
-            list.sort_by(|a, b| a.cost.partial_cmp(&b.cost).unwrap());
-            candidates.insert(*ref_id, VecDeque::from(list));
+
+            if !list.is_empty() {
+                list.sort_by(|a, b| a.cost.partial_cmp(&b.cost).unwrap());
+                candidates.insert(ref_id, VecDeque::from(list));
+            }
         }
 
         candidates
@@ -278,7 +298,7 @@ impl AssignmentMachine {
         let leftover_queries = if queries.is_empty() {
             HashMap::new()
         } else {
-            let mut candidates = self.compute_candidate_moves(original_queries);
+            let mut candidates = self.compute_candidate_moves(original_queries, &queries);
             self.place_leftovers(&queries, &mut candidates)
         };
         
