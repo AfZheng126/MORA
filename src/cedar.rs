@@ -191,7 +191,7 @@ impl Cedar {
             self.strain_abundance.insert(*key, 0.0);
         }
 
-        // constucting coverage bins;
+        // constructing coverage bins;
         let (sender, receiver) = channel();
 
         (0..self.references.len()).into_par_iter().for_each_with(sender, |s, index| {
@@ -344,7 +344,7 @@ impl Cedar {
 
             // end of set cover input preparation
             // run set_cover algorithm over the lists of refs and eqs in ref2_eqset
-            // as we are givng sets and weights and not &sets and &weights, they are lost after greedy_set_cover finishes
+            // as we are giving sets and weights and not &sets and &weights, they are lost after greedy_set_cover finishes
             let final_covering = greedy_set_cover(sets, weights, unique_element_count);
 
             // put the list of minimum # of references that can cover all eqs in remainingRefs
@@ -442,7 +442,7 @@ impl Cedar {
             });
 
             // E Step
-            // normalize strain probabilities using the denum : p(s) = (count(s)/total_read_cnt)
+            // normalize strain probabilities using the denom : p(s) = (count(s)/total_read_cnt)
             converged = true;
             let mut max_diff = 0.0;
 
@@ -487,9 +487,9 @@ impl Cedar {
         std::mem::swap(&mut self.strain_abundance, &mut output_map);
     }
 
-    // outputs file with the references and their estimated abundancies
+    // outputs file with the references and their estimated abundances
     pub(crate) fn serialize_simple(&mut self, output_filename: String) {
-        println!("Writing abundanceies into the file: {}", &output_filename);
+        println!("Writing abundances into the file: {}", &output_filename);
 
         let mut output = File::create(output_filename).unwrap();
         for i in 0..self.strain_abundance.len(){

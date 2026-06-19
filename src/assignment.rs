@@ -1,11 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
 use std::io::Write;
-use std::sync::Mutex;
-use std::sync::mpsc::channel;
 use rand_distr::WeightedAliasIndex;
 
-use rayon::prelude::{IntoParallelIterator, ParallelIterator, IntoParallelRefIterator};
 use rayon::slice::ParallelSliceMut;
 
 use crate::cedar::Cedar;
@@ -14,6 +11,18 @@ use rand::prelude::*;
 
 mod get_taxonomy;
 use get_taxonomy::tax_main;
+
+/*
+    Candidate move for an incumbent to make room on a reference
+ */
+struct CandidateMove {
+    cost: f32,
+    incumbent_id: usize,
+    incumbent_score: usize,
+    alt_ref_id: usize,
+    alt_score: usize
+}
+
 /*
     abundance: <ref_id, estimated abundance from cedar>
     current_abundance: <ref_id, current abundance>
@@ -73,48 +82,190 @@ impl AssignmentMachine {
     }
 
     // initial assignment of unique mapping queries or unmapped queries
-    fn initial_assignment(&mut self, queries: HashMap<usize, Query>) -> HashMap<usize, Query> {
-        let mut updated_queries = queries.clone(); 
-
+    fn initial_assignment(&mut self, mut queries: HashMap<usize, Query>) -> HashMap<usize, Query> {
         let mut unique_mapping_queries = 0;
         let mut unmapped_queries = 0;
+        let mut to_remove = Vec::new();
         
         println!("total query_size = {}", self.query_size);
-        for (query_id, query) in queries {
-            let maps: Vec<Mapping> = query.mappings.into_iter().collect();
+        for (query_id, query) in &queries {
+            if query.mappings.is_empty() {
+                unmapped_queries += 1;
 
-            if {maps.len() == 1} || check_if_read_is_uniquely_mapping(&maps) {
+                self.add_assignment(*query_id, usize::MAX, 0);
+                to_remove.push(*query_id)
+            } else if check_if_read_is_uniquely_mapping(&query.mappings) {
                 unique_mapping_queries += 1;
 
-                updated_queries.remove(&query_id);
-                self.add_assignment(query_id, maps[0].get_reference_id(), 1000);
-            } else if maps.len() == 0 {
-                unmapped_queries += 1;
-                updated_queries.remove(&query_id);
-                self.add_assignment(query_id, usize::MAX, 0);
+                let ref_id = query.mappings.iter().next().unwrap().get_reference_id();
+                self.add_assignment(*query_id, ref_id, 1000);
+                to_remove.push(*query_id)
             }
-
         }
+
+        for id in to_remove {
+            queries.remove(&id);
+        }
+
         println!("unique mapping queries: {}, unmapped queries: {}, current assigned length: {}", unique_mapping_queries, unmapped_queries, self.output_assignments.len());
-        updated_queries
+
+        queries
     }
 
     // secondary assignment of queries whose best mapping is a lot better than the secondary mappings
-    fn secondary_assignment(&mut self, queries: HashMap<usize, Query>, score_max_diff: f32) -> HashMap<usize, Query>{
-        let mut updated_queries = queries.clone();
+    fn secondary_assignment(&mut self, mut queries: HashMap<usize, Query>, score_max_diff: f32) -> HashMap<usize, Query>{
+        let mut to_remove = Vec::new();
+
         for (query_id, query) in &queries {
             let (ref_id, score) = assign_best(query, &self, score_max_diff);
             if ref_id != usize::MAX - 1 {
-                updated_queries.remove(query_id);
+                to_remove.push(*query_id);
                 if self.has_space(&ref_id) {
                     self.add_assignment(*query_id, ref_id, score as usize);
                 }
             }
         }
-        updated_queries
+
+        for id in to_remove {
+            queries.remove(&id);
+        }
+
+        queries
     }
 
-    //assignment based on abudancies
+    fn compute_candidate_moves(
+        &self,
+        original_queries: &HashMap<usize, Query>,
+        leftovers: &HashMap<usize, Query>
+    ) -> HashMap<usize, VecDeque<CandidateMove>>
+    {
+        let mut max_thresholds: HashMap<usize, f32> = HashMap::new();
+        for query in leftovers.values() {
+            let total = query.get_total_score();
+
+            for mapping in &query.mappings {
+                let new_threshold = mapping.get_score() / total;
+                let cur_threshold = max_thresholds
+                    .entry(mapping.get_reference_id())
+                    .or_insert(f32::NEG_INFINITY);
+
+                if new_threshold > *cur_threshold {
+                    *cur_threshold = new_threshold;
+                }
+            }
+        }
+
+        let mut candidates = HashMap::new();
+        for (&ref_id, &threshold_limit) in &max_thresholds {
+            let bins = match self.assignments.get(&ref_id) {
+                Some(b) => b,
+                None => continue
+            };
+            let mut list = Vec::new();
+
+            for (score, incumbents) in bins {
+                for inc_id in incumbents {
+                    let inc = &original_queries[inc_id];
+                    let total_score = inc.get_total_score();
+
+                    for mapping in &inc.mappings {
+                        let alt_ref_id = mapping.get_reference_id();
+
+                        if alt_ref_id != ref_id && self.has_space(&alt_ref_id) {
+                            let cost = 2.0 * (*score as f32) / total_score
+                                - mapping.get_score() / total_score;
+
+                            if cost < threshold_limit {
+                                list.push(CandidateMove {
+                                    cost,
+                                    incumbent_id: *inc_id,
+                                    incumbent_score: *score,
+                                    alt_ref_id,
+                                    alt_score: mapping.get_score() as usize
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !list.is_empty() {
+                list.sort_by(|a, b| a.cost.partial_cmp(&b.cost).unwrap());
+                candidates.insert(ref_id, VecDeque::from(list));
+            }
+        }
+
+        candidates
+    }
+
+    fn place_leftovers(&mut self, leftovers: &HashMap<usize, Query>,
+        candidates: &mut HashMap<usize, VecDeque<CandidateMove>>)
+        -> HashMap<usize, Query>
+    {
+        let mut unplaced = HashMap::new();
+
+        let mut leftover_ids: Vec<usize> = leftovers.keys().cloned().collect();
+        leftover_ids.sort_by(|a, b| {
+            leftovers[b].get_best_mappings().1
+                .partial_cmp(&leftovers[a].get_best_mappings().1).unwrap()
+        });
+
+        for query_id in leftover_ids {
+            let total_score = leftovers[&query_id].get_total_score();
+            let mut placed = false;
+
+            for mapping in leftovers[&query_id].sort_mappings() {
+                let target = mapping.get_reference_id();
+                let threshold = mapping.get_score() / total_score;
+
+                let chosen = match candidates.get_mut(&target) {
+                    Some(queue) => self.take_valid_move(queue, target, threshold),
+                    None => continue
+                };
+
+                if let Some(c) = chosen {
+                    self.remove_assignment(target, c.incumbent_id, c.incumbent_score);
+                    self.add_assignment(c.incumbent_id, c.alt_ref_id, c.alt_score);
+                    self.add_assignment(query_id, target, mapping.get_score() as usize);
+                    placed = true;
+                    break;
+                }
+            }
+
+            if !placed {
+                unplaced.insert(query_id, leftovers[&query_id].clone());
+            }
+        }
+
+        unplaced
+    }
+
+    fn take_valid_move(&self, queue: &mut VecDeque<CandidateMove>, target: usize, threshold: f32)
+        -> Option<CandidateMove>
+    {
+        while !queue.is_empty() {
+            if queue[0].cost >= threshold {
+                return None;
+            }
+
+            let (inc_id, inc_score, alt_ref_id) = (
+                queue[0].incumbent_id, queue[0].incumbent_score, queue[0].alt_ref_id
+            );
+
+            let incumbent_here = self.assignments.get(&target)
+                .and_then(|b| b.get(&inc_score))
+                .is_some_and(|s| s.contains(&inc_id));
+
+            if incumbent_here && self.has_space(&alt_ref_id) {
+                return queue.pop_front()
+            }
+            queue.pop_front();
+        }
+
+        None
+    }
+
+    //assignment based on abundances
     fn assign_based_on_abundance(&mut self, mut queries: HashMap<usize, Query>, original_queries: &HashMap<usize, Query>, method: String) {
         //create score bins
         let mut score_bins = HashMap::new();
@@ -140,60 +291,30 @@ impl AssignmentMachine {
             }
         }
         println!("queries have been mapped to the best possible reference. left overs: {}", queries.len());
+
+        // assignment of the left overs by trying to open up space
+        let leftover_queries = if queries.is_empty() {
+            HashMap::new()
+        } else {
+            let mut candidates = self.compute_candidate_moves(original_queries, &queries);
+            self.place_leftovers(&queries, &mut candidates)
+        };
         
-        // assignment of the left overs by tring to open up space
-        let cannot_move = Mutex::new(0);
-        let left_over_queries = Mutex::new(HashMap::new());
-        if queries.len() != 0 {
-            let (sender, receiver) = channel();
-
-            queries.par_iter().for_each_with(sender, |s, (query_id, query)|{
-                let ordered_mappings = query.sort_mappings();
-                let total_score = query.get_total_score();
-                //check if something can be moved from the reference that the mapping is mapped to
-                let mut moved = false;
-                for map in ordered_mappings {
-                    let new_score = map.get_score();
-                    let new_normalized_score = map.get_score() / total_score;
-                    let (q_moved, id_of_moved, re_assigned_ref, original_score, re_assigned_score) = try_open_up_space(&self.assignments[&map.get_reference_id()], self, &map.get_reference_id(), original_queries, new_normalized_score);
-                    if q_moved {
-                        s.send((map.get_reference_id(), id_of_moved, original_score, re_assigned_ref, re_assigned_score, query_id, map.get_reference_id(), new_score as usize)).ok();
-                        moved = true;
-                        break;
-                    }
-                }
-                if !moved {
-                    let mut locked = cannot_move.lock().unwrap();
-                    *locked += 1;
-                    let mut left_over_queries_locked = left_over_queries.lock().unwrap();
-                    left_over_queries_locked.insert(*query_id, query.clone());
-                }
-            });
-
-            let mut res: Vec<_> = receiver.iter().collect();
-            res.iter_mut().for_each(|x| {
-                let (old_ref_id, id_of_moved, original_score, new_ref_id, new_score, 
-                    query_id, map_ref_id, map_score) = x;
-                self.remove_assignment(*old_ref_id, *id_of_moved, *original_score);
-                self.add_assignment(*id_of_moved, *new_ref_id, *new_score);
-                self.add_assignment(**query_id, *map_ref_id, *map_score);
-            });
-        }
-        println!("cannot move: {}", cannot_move.into_inner().unwrap());
+        println!("cannot move: {}", leftover_queries.len());
 
         //assign the queries that cannot be mapped based on what method was specified. Default mode is none
         if method == "none" {
-            self.leave_left_overs(left_over_queries.into_inner().unwrap());
+            self.leave_left_overs(leftover_queries);
         } else {
-            self.assign_based_on_prob(left_over_queries.into_inner().unwrap());
+            self.assign_based_on_prob(leftover_queries);
         }
     }
 
     //assignment based on probability with weights being the mapping scores
     fn assign_based_on_prob(&mut self, queries: HashMap<usize, Query>) {
         for (name, query) in queries {
-            let mappings:Vec<Mapping> = query.mappings.into_par_iter().collect();
-            let dist  = WeightedAliasIndex::new(mappings.par_iter().map(|mapping| mapping.get_score()).collect()).unwrap();
+            let mappings:Vec<Mapping> = query.mappings.into_iter().collect();
+            let dist  = WeightedAliasIndex::new(mappings.iter().map(|mapping| mapping.get_score()).collect()).unwrap();
             // assign randomly
             let mut rng = thread_rng();
             let chosen = &mappings[dist.sample(&mut rng)];
@@ -211,14 +332,13 @@ impl AssignmentMachine {
 
 
 // helper to check if read is uniquely mapping
-fn check_if_read_is_uniquely_mapping(maps: &Vec<Mapping>) -> bool {
-    let reference_id = maps[0].get_reference_id();
-    for map in maps {
-        if map.get_reference_id() != reference_id {
-            return false;
-        }
-    }
-    return true;
+fn check_if_read_is_uniquely_mapping(mappings: &HashSet<Mapping>) -> bool {
+    let mut it = mappings.iter();
+    let first = match it.next() {
+        Some(m) => m.get_reference_id(),
+        None => return false
+    };
+    it.all(|m| m.get_reference_id() == first)
 }
 
 // assign each mapping to a unique reference based on their mapping scores and the predicted abundance levels
@@ -227,12 +347,12 @@ pub(crate) fn assign_mappings(cedar: Cedar, score_max_diff: f32, method: String)
     let references = cedar.get_references();
     let mut machine = AssignmentMachine::new(cedar.get_strain_abundance(), queries.len() - cedar.get_unmapping_reads());
 
-    println!("performing assignment of quries\n");
+    println!("performing assignment of queries\n");
 
     //initial assignment
     queries = machine.initial_assignment(queries);
 
-    println!("intial assignment done. query length: {}", queries.len());
+    println!("initial assignment done. query length: {}", queries.len());
     
     //secondary assignment
     queries = machine.secondary_assignment(queries, score_max_diff);
@@ -240,7 +360,7 @@ pub(crate) fn assign_mappings(cedar: Cedar, score_max_diff: f32, method: String)
     println!("second assignment done. query length: {}", queries.len());
 
     //assignment of the rest of the queries based on abundancies
-    machine.assign_based_on_abundance(queries, &cedar.get_queries(), method);
+    machine.assign_based_on_abundance(queries, &cedar.queries, method);
 
     println!("final assignment done. output length: {}", machine.output_assignments.len());
 
@@ -272,46 +392,6 @@ fn assign_best(query: &Query, machine: &AssignmentMachine, score_max_diff: f32) 
     } else {
         (usize::MAX - 1, 0.0)
     }
-}
-
-/*
-    assignemnts: <score, query_name>
-    ref_id: the reference that we are trying to open up space in 
-    new_normalized_score: the score for the read we are trying to make space for
-
-    output: 
-        - if it has been moved
-        - id of query that has been moved
-        - id of reference query was moved to
-        - original mapping score
-        - new mapping score
-*/
-fn try_open_up_space(assignments: &HashMap<usize, HashSet<usize>>, machine: &AssignmentMachine, ref_id: &usize, queries: &HashMap<usize, Query>, new_normalized_score: f32) -> (bool, usize, usize, usize, usize) {
-    if assignments.len() == 0 {
-        return (false, 0, 0, 0, 0);
-    }
-
-    // sort the keys from smallest to largest
-    let mut keys: Vec<&usize> = assignments.keys().collect();
-    keys.par_sort_by(|a, b| a.cmp(b));
-
-    // try find a query that can be moved
-    for key in &keys {
-        for query_id in assignments.get(key).unwrap() {
-            let query = &queries[query_id];
-            let total_score = query.get_total_score();
-            // try assign the query to somewhere else
-            for mapping in &query.mappings {
-                let re_assigned_ref_id = &mapping.get_reference_id();
-                if re_assigned_ref_id != ref_id && machine.has_space(re_assigned_ref_id) {
-                    if (**key as f32)/total_score - mapping.get_score()/total_score  <  new_normalized_score - (**key as f32)/total_score {
-                        return (true, *query_id, *re_assigned_ref_id, **key, mapping.get_score() as usize);
-                    }
-                }
-            }
-        }
-    }
-    (false, 0, 0, 0, 0)
 }
 
 // write the output into a file in the following way: query_name    reference_name
