@@ -292,8 +292,6 @@ impl AssignmentMachine {
         }
         println!("queries have been mapped to the best possible reference. left overs: {}", queries.len());
 
-        let leftover_phase_start = std::time::Instant::now();
-        
         // assignment of the left overs by tring to open up space
         let leftover_queries = if queries.is_empty() {
             HashMap::new()
@@ -302,7 +300,6 @@ impl AssignmentMachine {
             self.place_leftovers(&queries, &mut candidates)
         };
         
-        eprintln!("leftover-phase-seconds: {:.3}", leftover_phase_start.elapsed().as_secs_f64());
         println!("cannot move: {}", leftover_queries.len());
 
         //assign the queries that cannot be mapped based on what method was specified. Default mode is none
